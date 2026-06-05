@@ -1,8 +1,12 @@
 from types import SimpleNamespace
 
+from core.plugins.registry_catalog import RegistryPluginRecord
+from frontend_bridge_core.state import BridgeState
 from frontend_bridge_core.plugin_updates import (
     _infer_plugin_entry,
+    _install_plugin_source,
     _is_repo_source,
+    _lookup_registry_plugin,
     _plugin_class_from_file,
     _repo_slug_from_source,
     _synthetic_plugin_result,
@@ -92,3 +96,70 @@ def test_infer_plugin_entry_ignores_non_identifier_module_parts(tmp_path):
     (plugin_root / "plugin.py").write_text("class DemoPlugin(PluginBase):\n    pass\n", encoding="utf-8")
 
     assert _infer_plugin_entry(plugin_root) == ""
+
+
+def test_lookup_registry_plugin_matches_catalog_id(monkeypatch):
+    record = RegistryPluginRecord(
+        id="vision-demo",
+        name="legacy-vision-name",
+        display_name="Vision Demo",
+        author="Tester",
+        repo="owner/vision-demo",
+        description="Packaged plugin",
+        short_description="Packaged plugin",
+        entry="plugins.vision_demo.plugin:VisionDemoPlugin",
+        package_url="https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/vision.zip",
+        package_sha256="abc123",
+    )
+
+    monkeypatch.setattr("core.plugins.registry_catalog.fetch_registry_plugins", lambda timeout_sec=12: [record])
+
+    assert _lookup_registry_plugin("vision-demo") is record
+
+
+def test_install_plugin_source_prefers_registry_package_for_catalog_id(tmp_path, monkeypatch):
+    plugin_root = tmp_path / "demo-plugin"
+    plugin_root.mkdir()
+    (plugin_root / "plugin.py").write_text("class DemoPlugin(PluginBase):\n    pass\n", encoding="utf-8")
+    record = RegistryPluginRecord(
+        id="demo-plugin",
+        name="demo-plugin",
+        display_name="Demo Plugin",
+        author="Tester",
+        repo="owner/demo-plugin",
+        description="Packaged plugin",
+        short_description="Packaged plugin",
+        entry="plugins.demo_plugin.plugin:DemoPlugin",
+        package_source="r2",
+        package_url="https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip",
+        package_sha256="abc123",
+        package_size=128,
+    )
+    state = BridgeState(None, None, None, None)
+    state.tasks["task"] = {}
+    installed: list[tuple[RegistryPluginRecord, bool]] = []
+    marked: list[tuple[str, str | None]] = []
+
+    monkeypatch.setattr("frontend_bridge_core.plugin_updates._lookup_registry_plugin", lambda source: record)
+    monkeypatch.setattr(
+        "core.plugins.package_download.install_registry_package_under_plugins",
+        lambda rec, plugins_parent, overwrite=False: installed.append((rec, overwrite)) or plugin_root,
+    )
+    monkeypatch.setattr(
+        "core.plugins.plugin_requirements_install.install_plugin_requirements_txt",
+        lambda root, on_output_line=None: ("ok", ""),
+    )
+    monkeypatch.setattr(
+        "core.plugins.registry_download.mark_repo_downloaded",
+        lambda repo, manifest_entry=None: marked.append((repo, manifest_entry)),
+    )
+    monkeypatch.setattr(
+        "frontend_bridge_core.plugin_updates._plugin_result_from_manifest",
+        lambda entry: {"entry": entry, "title": "Demo Plugin"},
+    )
+
+    result = _install_plugin_source(state, "task", "demo-plugin")
+
+    assert result == {"entry": "plugins.demo_plugin.plugin:DemoPlugin", "title": "Demo Plugin"}
+    assert installed == [(record, False)]
+    assert marked == [("owner/demo-plugin", "plugins.demo_plugin.plugin:DemoPlugin")]

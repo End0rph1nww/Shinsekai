@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
 from typing import Any
 
@@ -135,11 +136,23 @@ def _lookup_registry_plugin(source: str) -> Any | None:
         rec_repo = normalize_repo_slug(rec.repo)
         if rec_repo and rec_repo == repo_slug:
             return rec
+        if str(getattr(rec, "id", "") or "").strip().lower() == source_key:
+            return rec
         if rec.name.strip().lower() == source_key:
+            return rec
+        if str(getattr(rec, "display_name", "") or "").strip().lower() == source_key:
             return rec
         if rec.entry.strip().lower() == source_key:
             return rec
     return None
+
+
+def _has_registry_package(record: Any | None) -> bool:
+    if record is None:
+        return False
+    if str(os.environ.get("SHINSEKAI_PLUGIN_DISABLE_PACKAGE_INSTALL", "")).strip() == "1":
+        return False
+    return bool(str(getattr(record, "package_url", "") or getattr(record, "download_url", "") or "").strip())
 
 
 def _plugin_class_from_file(path: Path) -> str:
@@ -208,6 +221,75 @@ def _synthetic_plugin_result(
     }
 
 
+def _install_registry_package_source(
+    state: BridgeState,
+    task_id: str,
+    registry_rec: Any,
+    *,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    from core.plugins.package_download import install_registry_package_under_plugins
+    from core.plugins.plugin_requirements_install import install_plugin_requirements_txt
+    from core.plugins.registry_download import format_download_error, mark_repo_downloaded
+
+    display_name = str(
+        getattr(registry_rec, "display_name", "")
+        or getattr(registry_rec, "name", "")
+        or getattr(registry_rec, "repo", "")
+        or "plugin"
+    ).strip()
+    repo = str(getattr(registry_rec, "repo", "") or "").strip()
+    entry = str(getattr(registry_rec, "entry", "") or "").strip()
+    description = str(getattr(registry_rec, "description", "") or "").strip()
+
+    _update_task(
+        state,
+        task_id,
+        message=f"Downloading official package for {display_name}.",
+        phase="download",
+        progress=0.08,
+    )
+    try:
+        plugin_root = install_registry_package_under_plugins(
+            registry_rec,
+            plugins_parent=Path("plugins"),
+            overwrite=overwrite,
+        )
+    except Exception as exc:
+        raise RuntimeError(format_download_error(exc)) from exc
+
+    _update_task(
+        state,
+        task_id,
+        message="Checking plugin requirements.txt.",
+        phase="pip",
+        progress=0.72,
+    )
+
+    def _pip_line(line: str) -> None:
+        _append_task_log(state, task_id, line)
+
+    pip_code, pip_detail = install_plugin_requirements_txt(plugin_root, on_output_line=_pip_line)
+    if pip_code in {"pip_failed", "pip_timeout", "pip_exception"}:
+        detail = pip_detail or pip_code
+        raise RuntimeError(f"Plugin dependency installation failed: {detail}")
+
+    if not entry:
+        entry = _infer_plugin_entry(plugin_root)
+
+    _update_task(state, task_id, message="Registering plugin install state.", phase="manifest", progress=0.9)
+    mark_repo_downloaded(repo, manifest_entry=entry or None)
+    if entry:
+        return _plugin_result_from_manifest(entry)
+
+    return _synthetic_plugin_result(
+        description=description or f"Package downloaded to {plugin_root.as_posix()}, but no manifest entry was found.",
+        enabled=False,
+        plugin_id=str(getattr(registry_rec, "id", "") or getattr(registry_rec, "name", "") or plugin_root.name),
+        title=display_name or plugin_root.name,
+    )
+
+
 def _install_plugin_source(
     state: BridgeState,
     task_id: str,
@@ -226,6 +308,14 @@ def _install_plugin_source(
         raise ValueError("tagName is required when refKind is tag")
 
     if not _is_repo_source(source):
+        registry_rec = _lookup_registry_plugin(source)
+        if ref_kind == "latest" and _has_registry_package(registry_rec):
+            return _install_registry_package_source(
+                state,
+                task_id,
+                registry_rec,
+                overwrite=overwrite,
+            )
         _update_task(
             state,
             task_id,
@@ -253,6 +343,14 @@ def _install_plugin_source(
     entry = str(getattr(registry_rec, "entry", "") or "").strip()
     display_name = str(getattr(registry_rec, "name", "") or "").strip()
     description = str(getattr(registry_rec, "description", "") or "").strip()
+
+    if ref_kind == "latest" and _has_registry_package(registry_rec):
+        return _install_registry_package_source(
+            state,
+            task_id,
+            registry_rec,
+            overwrite=overwrite,
+        )
 
     _update_task(
         state,

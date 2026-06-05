@@ -17,10 +17,11 @@ function AppI18nProvider({ children }: { children: ReactNode }) {
 
 export function AppRuntimeProviders({ children }: { children: ReactNode }) {
   const configQuery = useQuery({ queryFn: getAppConfig, queryKey: configQueryKey });
+  const themeColor = configQuery.data?.system_config?.theme_color;
 
   useEffect(() => {
-    applyThemeColor(configQuery.data?.system_config.theme_color);
-  }, [configQuery.data?.system_config.theme_color]);
+    applyThemeColor(themeColor);
+  }, [themeColor]);
 
   return (
     <FileBrowserProvider browse={browseFiles}>

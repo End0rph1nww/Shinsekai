@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { DownloadCloud, ExternalLink, RefreshCw } from "lucide-react";
+import {
+  Box,
+  CheckCircle2,
+  Clock3,
+  DownloadCloud,
+  ExternalLink,
+  GitBranch,
+  PackageCheck,
+  RefreshCw,
+  ShieldCheck,
+  Star,
+  Tag,
+  UserRound,
+} from "lucide-react";
 
 import {
   getAppUpdateInfo,
@@ -32,7 +45,6 @@ import type { TaskSnapshot } from "../../shared/platform/types";
 import {
   AsyncButton,
   Button,
-  DataTable,
   Dialog,
   EmptyState,
   QueryErrorState,
@@ -68,6 +80,58 @@ type DesktopUpdateErrorFallback = "plugin.desktopUpdate.checkFailed" | "plugin.d
 
 const CATALOG_PAGE_SIZE = 10;
 
+function catalogDisplayName(plugin: PluginCatalogItem) {
+  return plugin.displayName || plugin.name || plugin.repo || plugin.entry;
+}
+
+function catalogDescription(plugin: PluginCatalogItem) {
+  return plugin.shortDescription || plugin.description || "";
+}
+
+function catalogTags(plugin: PluginCatalogItem) {
+  return plugin.tags ?? [];
+}
+
+function hasOfficialPackage(plugin: PluginCatalogItem | null | undefined) {
+  return Boolean(plugin?.packageUrl || plugin?.downloadUrl);
+}
+
+function formatBytes(value: number | null | undefined) {
+  const size = Number(value);
+  if (!Number.isFinite(size) || size <= 0) {
+    return "";
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function compactSha(value: string | undefined) {
+  const raw = (value ?? "").trim();
+  return raw.length > 12 ? `${raw.slice(0, 10)}...` : raw;
+}
+
+function securityScanPassed(plugin: PluginCatalogItem) {
+  const scan = plugin.securityScan;
+  if (!scan || typeof scan !== "object") {
+    return false;
+  }
+  return Object.values(scan).some((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+    return (item as { pass?: unknown }).pass === true;
+  });
+}
+
+function catalogKey(plugin: PluginCatalogItem) {
+  return plugin.id || plugin.name || plugin.repo || plugin.entry;
+}
+
 export function PluginCatalogPanel({
   appUpdateMutation,
   appUpdateTask,
@@ -92,11 +156,19 @@ export function PluginCatalogPanel({
   const [catalogTagName, setCatalogTagName] = useState("");
   const catalogMatches = useCallback((plugin: PluginCatalogItem, query: string) => {
     return searchablePluginText([
+      plugin.id,
       plugin.name,
+      plugin.displayName,
       plugin.repo,
       plugin.entry,
       plugin.author,
       plugin.description,
+      plugin.shortDescription,
+      plugin.version,
+      plugin.updatedAt,
+      plugin.tags?.join(" "),
+      plugin.downloadUrl,
+      plugin.packageUrl,
       plugin.downloaded ? "downloaded installed update" : "not installed",
     ]).includes(query);
   }, []);
@@ -117,7 +189,7 @@ export function PluginCatalogPanel({
     retry: 1,
   });
   const catalogTagsQuery = useQuery({
-    enabled: Boolean(pendingCatalogInstall?.repo),
+    enabled: Boolean(pendingCatalogInstall?.repo) && !hasOfficialPackage(pendingCatalogInstall),
     queryFn: () => listRepoTags(pendingCatalogInstall ? catalogInstallSource(pendingCatalogInstall) : ""),
     queryKey: ["plugins", "repo-tags", pendingCatalogInstall ? catalogInstallSource(pendingCatalogInstall) : ""],
     retry: 1,
@@ -250,48 +322,106 @@ export function PluginCatalogPanel({
         ? t("plugin.desktopUpdate.installing")
         : t("plugin.desktopUpdate.downloading");
 
-  const catalogColumns = [
-    {
-      header: t("plugin.plugin"),
-      key: "name",
-      render: (plugin: PluginCatalogItem) => (
-        <div className="plugin-catalog-identity">
-          <strong className="plugin-catalog-identity__name" title={plugin.name}>
-            {plugin.name}
-          </strong>
-          {plugin.repo ? (
-            <span className="plugin-catalog-identity__repo" title={plugin.repo}>
-              {plugin.repo}
+  const renderCatalogCard = (plugin: PluginCatalogItem) => {
+    const source = catalogInstallSource(plugin);
+    const url = plugin.sourceUrl || githubUrl(plugin.repo);
+    const actionDisabled = !source || installMutation.isPending;
+    const displayName = catalogDisplayName(plugin);
+    const packageSize = formatBytes(plugin.packageSize ?? plugin.size);
+    const tags = catalogTags(plugin).slice(0, 4);
+    const officialPackage = hasOfficialPackage(plugin);
+    const installed = plugin.installed || plugin.downloaded;
+    const scanPassed = securityScanPassed(plugin);
+
+    return (
+      <article className="plugin-market-card" key={catalogKey(plugin)}>
+        <div className="plugin-market-card__header">
+          <div className="plugin-market-card__logo" aria-hidden="true">
+            {plugin.logo ? <img alt="" src={plugin.logo} /> : <span>{displayName.slice(0, 2).toUpperCase()}</span>}
+          </div>
+          <div className="plugin-market-card__identity">
+            <div className="plugin-market-card__title-row">
+              <h3 title={displayName}>{displayName}</h3>
+              {plugin.version ? <span className="plugin-market-badge">v{plugin.version.replace(/^v/i, "")}</span> : null}
+            </div>
+            <span className="plugin-market-card__id" title={plugin.name}>
+              {plugin.name}
+            </span>
+          </div>
+        </div>
+
+        <p className="plugin-market-card__description">{catalogDescription(plugin) || plugin.repo || plugin.entry}</p>
+
+        <div className="plugin-market-card__badges" aria-label="Plugin metadata">
+          {officialPackage ? (
+            <span className="plugin-market-badge plugin-market-badge--official">
+              <PackageCheck aria-hidden size={13} />
+              {plugin.packageSource?.toUpperCase() || "R2"}
+            </span>
+          ) : (
+            <span className="plugin-market-badge">
+              <GitBranch aria-hidden size={13} />
+              GitHub
+            </span>
+          )}
+          {scanPassed ? (
+            <span className="plugin-market-badge plugin-market-badge--safe">
+              <ShieldCheck aria-hidden size={13} />
+              Scan
+            </span>
+          ) : null}
+          {installed ? (
+            <span className="plugin-market-badge plugin-market-badge--installed">
+              <CheckCircle2 aria-hidden size={13} />
+              {plugin.downloaded ? t("plugin.status.downloaded") : t("plugin.status.installed")}
             </span>
           ) : null}
         </div>
-      ),
-    },
-    {
-      header: t("common.author"),
-      key: "author",
-      render: (plugin: PluginCatalogItem) => plugin.author || "-",
-    },
-    {
-      header: t("common.description"),
-      key: "description",
-      render: (plugin: PluginCatalogItem) => plugin.description || "-",
-    },
-    {
-      header: t("plugin.table.actionHeader"),
-      key: "actions",
-      render: (plugin: PluginCatalogItem) => {
-        const source = catalogInstallSource(plugin);
-        const url = githubUrl(plugin.repo);
-        const actionDisabled = !source || installMutation.isPending;
-        return (
+
+        <div className="plugin-market-card__meta">
+          <span title={plugin.author || ""}>
+            <UserRound aria-hidden size={14} />
+            {plugin.author || "-"}
+          </span>
+          <span title={plugin.updatedAt || ""}>
+            <Clock3 aria-hidden size={14} />
+            {plugin.updatedAt ? plugin.updatedAt.slice(0, 10) : "-"}
+          </span>
+          <span>
+            <Star aria-hidden size={14} />
+            {Number(plugin.stars || 0).toLocaleString()}
+          </span>
+          {packageSize ? (
+            <span title={plugin.packageR2Key || plugin.downloadUrl || ""}>
+              <Box aria-hidden size={14} />
+              {packageSize}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="plugin-market-card__tags">
+          {tags.map((tag) => (
+            <span className="plugin-market-chip" key={tag}>
+              <Tag aria-hidden size={12} />
+              {tag}
+            </span>
+          ))}
+          {catalogTags(plugin).length > tags.length ? (
+            <span className="plugin-market-chip plugin-market-chip--muted">+{catalogTags(plugin).length - tags.length}</span>
+          ) : null}
+        </div>
+
+        <div className="plugin-market-card__foot">
+          <span className="plugin-market-card__source" title={plugin.repo || plugin.entry || ""}>
+            {officialPackage ? compactSha(plugin.packageSha256 || plugin.sha256) || "official package" : plugin.repo || plugin.entry}
+          </span>
           <div className="inline-actions">
             <AsyncButton
               disabled={actionDisabled}
               icon={<DownloadCloud aria-hidden className="button__icon" />}
               loading={installMutation.isPending && installingSource === source}
               onClick={() => {
-                if (plugin.repo) {
+                if (plugin.repo || officialPackage) {
                   installMutation.reset();
                   setCatalogRefKind("latest");
                   setCatalogTagName("");
@@ -313,10 +443,10 @@ export function PluginCatalogPanel({
               {t("plugin.action.openGitHub")}
             </Button>
           </div>
-        );
-      },
-    },
-  ];
+        </div>
+      </article>
+    );
+  };
 
   return (
     <section className="section">
@@ -380,11 +510,7 @@ export function PluginCatalogPanel({
         />
       ) : null}
       {catalogItems.pagedItems.length ? (
-        <DataTable
-          columns={catalogColumns}
-          getRowKey={(plugin) => plugin.repo || plugin.entry}
-          rows={catalogItems.pagedItems}
-        />
+        <div className="plugin-market-grid">{catalogItems.pagedItems.map(renderCatalogCard)}</div>
       ) : null}
       {!catalogQuery.isLoading &&
       !catalogQuery.isError &&
@@ -415,7 +541,8 @@ export function PluginCatalogPanel({
                   if (!source) {
                     return;
                   }
-                  if (catalogRefKind === "tag" && !catalogTagName.trim()) {
+                  const officialPackage = hasOfficialPackage(pendingCatalogInstall);
+                  if (!officialPackage && catalogRefKind === "tag" && !catalogTagName.trim()) {
                     showToast({
                       kind: "error",
                       message: t("plugin.appUpdate.tagInvalid"),
@@ -425,9 +552,9 @@ export function PluginCatalogPanel({
                   }
                   installMutation.mutate({
                     overwrite: Boolean(pendingCatalogInstall?.downloaded),
-                    refKind: catalogRefKind,
+                    refKind: officialPackage ? "latest" : catalogRefKind,
                     source,
-                    tagName: catalogRefKind === "tag" ? catalogTagName : undefined,
+                    tagName: !officialPackage && catalogRefKind === "tag" ? catalogTagName : undefined,
                   });
                 }}
                 variant="primary"
@@ -442,45 +569,97 @@ export function PluginCatalogPanel({
         title={t("plugin.installRef.title")}
       >
         <div className="plugin-detail">
-          <p className="inline-status">{t("plugin.appUpdate.repo", { repo: pendingCatalogInstall?.repo ?? "-" })}</p>
-          <label className="field-row field-row--stack">
-            <span className="field-row__label">{t("plugin.appUpdate.ref")}</span>
-            <span className="field-row__control">
-              <Select
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (value === "latest" || value === "head") {
-                    setCatalogRefKind(value);
-                    return;
-                  }
-                  setCatalogRefKind("tag");
-                  setCatalogTagName(value.replace(/^tag:/, ""));
-                }}
-                value={catalogRefKind === "tag" ? `tag:${catalogTagName}` : catalogRefKind}
-              >
-                <option value="latest">{t("plugin.appUpdate.refLatest")}</option>
-                <option value="head">{t("plugin.appUpdate.refHead")}</option>
-                {catalogTagsQuery.data?.map((tag) => (
-                  <option key={tag} value={`tag:${tag}`}>
-                    {tag}
-                  </option>
-                ))}
-              </Select>
-              {catalogTagsQuery.isLoading ? (
-                <span className="field-row__help">{t("plugin.appUpdate.tagsLoading")}</span>
-              ) : null}
-              {catalogTagsQuery.isError ? (
-                <span className="field-row__help" role="alert">
-                  {catalogTagsQuery.error instanceof Error
-                    ? catalogTagsQuery.error.message
-                    : t("plugin.appUpdate.tagsEmpty")}
-                </span>
-              ) : null}
-              {!catalogTagsQuery.isLoading && !catalogTagsQuery.isError && !catalogTagsQuery.data?.length ? (
-                <span className="field-row__help">{t("plugin.appUpdate.tagsEmpty")}</span>
-              ) : null}
-            </span>
-          </label>
+          {pendingCatalogInstall ? (
+            <div className="plugin-market-install-summary">
+              <div className="plugin-market-card__header">
+                <div className="plugin-market-card__logo" aria-hidden="true">
+                  {pendingCatalogInstall.logo ? (
+                    <img alt="" src={pendingCatalogInstall.logo} />
+                  ) : (
+                    <span>{catalogDisplayName(pendingCatalogInstall).slice(0, 2).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="plugin-market-card__identity">
+                  <div className="plugin-market-card__title-row">
+                    <h3>{catalogDisplayName(pendingCatalogInstall)}</h3>
+                    {pendingCatalogInstall.version ? (
+                      <span className="plugin-market-badge">
+                        v{pendingCatalogInstall.version.replace(/^v/i, "")}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="plugin-market-card__id">{pendingCatalogInstall.name}</span>
+                </div>
+              </div>
+              <p className="plugin-card__description">
+                {catalogDescription(pendingCatalogInstall) || pendingCatalogInstall.repo || pendingCatalogInstall.entry}
+              </p>
+              {hasOfficialPackage(pendingCatalogInstall) ? (
+                <dl className="plugin-market-package-grid">
+                  <div>
+                    <dt>Source</dt>
+                    <dd>{pendingCatalogInstall.packageSource?.toUpperCase() || "R2"}</dd>
+                  </div>
+                  <div>
+                    <dt>Size</dt>
+                    <dd>{formatBytes(pendingCatalogInstall.packageSize ?? pendingCatalogInstall.size) || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>SHA256</dt>
+                    <dd title={pendingCatalogInstall.packageSha256 || pendingCatalogInstall.sha256 || ""}>
+                      {compactSha(pendingCatalogInstall.packageSha256 || pendingCatalogInstall.sha256) || "-"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Updated</dt>
+                    <dd>{pendingCatalogInstall.updatedAt ? pendingCatalogInstall.updatedAt.slice(0, 10) : "-"}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <>
+                  <p className="inline-status">{t("plugin.appUpdate.repo", { repo: pendingCatalogInstall.repo ?? "-" })}</p>
+                  <label className="field-row field-row--stack">
+                    <span className="field-row__label">{t("plugin.appUpdate.ref")}</span>
+                    <span className="field-row__control">
+                      <Select
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          if (value === "latest" || value === "head") {
+                            setCatalogRefKind(value);
+                            return;
+                          }
+                          setCatalogRefKind("tag");
+                          setCatalogTagName(value.replace(/^tag:/, ""));
+                        }}
+                        value={catalogRefKind === "tag" ? `tag:${catalogTagName}` : catalogRefKind}
+                      >
+                        <option value="latest">{t("plugin.appUpdate.refLatest")}</option>
+                        <option value="head">{t("plugin.appUpdate.refHead")}</option>
+                        {catalogTagsQuery.data?.map((tag) => (
+                          <option key={tag} value={`tag:${tag}`}>
+                            {tag}
+                          </option>
+                        ))}
+                      </Select>
+                      {catalogTagsQuery.isLoading ? (
+                        <span className="field-row__help">{t("plugin.appUpdate.tagsLoading")}</span>
+                      ) : null}
+                      {catalogTagsQuery.isError ? (
+                        <span className="field-row__help" role="alert">
+                          {catalogTagsQuery.error instanceof Error
+                            ? catalogTagsQuery.error.message
+                            : t("plugin.appUpdate.tagsEmpty")}
+                        </span>
+                      ) : null}
+                      {!catalogTagsQuery.isLoading && !catalogTagsQuery.isError && !catalogTagsQuery.data?.length ? (
+                        <span className="field-row__help">{t("plugin.appUpdate.tagsEmpty")}</span>
+                      ) : null}
+                    </span>
+                  </label>
+                </>
+              )}
+            </div>
+          ) : null}
           <TaskProgress task={installTask} />
         </div>
       </Dialog>
