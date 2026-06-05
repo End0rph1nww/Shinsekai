@@ -160,6 +160,77 @@ def test_install_plugin_source_prefers_registry_package_for_catalog_id(tmp_path,
 
     result = _install_plugin_source(state, "task", "demo-plugin")
 
-    assert result == {"entry": "plugins.demo_plugin.plugin:DemoPlugin", "title": "Demo Plugin"}
+    assert result["entry"] == "plugins.demo_plugin.plugin:DemoPlugin"
+    assert result["title"] == "Demo Plugin"
+    assert result["install"] == {
+        "dependencyDetail": "",
+        "dependencyStatus": "ok",
+        "entry": "plugins.demo_plugin.plugin:DemoPlugin",
+        "packageSha256": "abc123",
+        "packageSize": 128,
+        "packageSource": "r2",
+        "packageStatus": "installed",
+        "packageUrl": "https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip",
+        "repo": "owner/demo-plugin",
+        "sourceLabel": "Official package (R2)",
+        "sourceType": "official-package",
+    }
+    assert state.tasks["task"]["installSource"] == "official-package"
+    assert state.tasks["task"]["packageStatus"] == "installed"
+    assert state.tasks["task"]["dependencyInstallStatus"] == "ok"
+    assert "Source: Official package (R2)" in state.tasks["task"]["logs"]
     assert installed == [(record, False)]
     assert marked == [("owner/demo-plugin", "plugins.demo_plugin.plugin:DemoPlugin")]
+
+
+def test_install_plugin_source_falls_back_to_github_when_registry_package_fails(tmp_path, monkeypatch):
+    plugin_root = tmp_path / "demo-plugin"
+    plugin_root.mkdir()
+    (plugin_root / "plugin.py").write_text("class DemoPlugin(PluginBase):\n    pass\n", encoding="utf-8")
+    record = RegistryPluginRecord(
+        id="demo-plugin",
+        name="demo-plugin",
+        display_name="Demo Plugin",
+        author="Tester",
+        repo="owner/demo-plugin",
+        description="Packaged plugin",
+        short_description="Packaged plugin",
+        entry="plugins.demo_plugin.plugin:DemoPlugin",
+        package_source="r2",
+        package_url="https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip",
+        package_sha256="abc123",
+    )
+    state = BridgeState(None, None, None, None)
+    state.tasks["task"] = {}
+    github_installs: list[tuple[str, str]] = []
+
+    monkeypatch.setattr("frontend_bridge_core.plugin_updates._lookup_registry_plugin", lambda source: record)
+    monkeypatch.setattr(
+        "core.plugins.package_download.install_registry_package_under_plugins",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("r2 unavailable")),
+    )
+
+    def fake_install_github(repo_slug, **kwargs):
+        github_installs.append((repo_slug, kwargs.get("ref_kind")))
+        return plugin_root
+
+    monkeypatch.setattr("core.plugins.github_bundle_update.install_github_plugin_under_plugins", fake_install_github)
+    monkeypatch.setattr(
+        "core.plugins.plugin_requirements_install.install_plugin_requirements_txt",
+        lambda root, on_output_line=None: ("pip_ok", ""),
+    )
+    monkeypatch.setattr("core.plugins.registry_download.mark_repo_downloaded", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "frontend_bridge_core.plugin_updates._plugin_result_from_manifest",
+        lambda entry: {"entry": entry, "title": "Demo Plugin"},
+    )
+
+    result = _install_plugin_source(state, "task", "demo-plugin")
+
+    assert result["install"]["sourceType"] == "github-source"
+    assert result["install"]["sourceLabel"] == "GitHub source fallback"
+    assert result["install"]["dependencyStatus"] == "pip_ok"
+    assert state.tasks["task"]["installSourceLabel"] == "GitHub source fallback"
+    assert state.tasks["task"]["dependencyInstallStatus"] == "pip_ok"
+    assert github_installs == [("owner/demo-plugin", "latest")]
+    assert any("falling back to GitHub" in line for line in state.tasks["task"]["logs"])

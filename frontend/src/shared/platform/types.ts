@@ -143,6 +143,7 @@ export interface PluginManifest {
   enabled: boolean;
   entry: string;
   id: string;
+  install?: PluginInstallMetadata;
   loadError?: string;
   loaded: boolean;
   permissions: string[];
@@ -151,6 +152,22 @@ export interface PluginManifest {
   title: string;
   toolsTabs: string[];
   version: string;
+}
+
+export interface PluginInstallMetadata {
+  dependencyDetail?: string;
+  dependencyStatus?: string;
+  entry?: string;
+  packageSha256?: string;
+  packageSize?: number | null;
+  packageSource?: string;
+  packageStatus?: string;
+  packageUrl?: string;
+  refKind?: AppUpdateRefKind;
+  repo?: string;
+  sourceLabel?: string;
+  sourceType?: string;
+  tagName?: string;
 }
 
 export interface PluginCatalogItem {
@@ -665,11 +682,18 @@ export interface FileBrowserSnapshot {
 export interface TaskSnapshot<TResult = unknown> {
   cancelRequested?: boolean;
   createdAt: number;
+  dependencyInstallStatus?: string;
   error?: string;
   id: string;
+  installSource?: string;
+  installSourceLabel?: string;
   kind: string;
   logs: string[];
   message: string;
+  packageSha256?: string;
+  packageSource?: string;
+  packageStatus?: string;
+  packageUrl?: string;
   phase: string;
   progress?: number | null;
   result?: TResult | null;
