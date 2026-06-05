@@ -119,6 +119,30 @@ def test_install_plugin_requirements_adds_env_index_url_to_pip_command(
     assert cmd[cmd.index("--index-url") + 1] == "https://mirror.example/simple"
 
 
+def test_install_plugin_requirements_uses_manifest_china_index_by_default(
+    monkeypatch,
+    tmp_path,
+):
+    installer, plugin_root = _prepare_installer(monkeypatch, tmp_path)
+    _write_requirements(plugin_root, "missing-package>=2\n")
+    calls = _capture_pip_invocation(monkeypatch, installer)
+    monkeypatch.delenv("PIP_INDEX_URL", raising=False)
+    monkeypatch.delenv("PIP_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("SHINSEKAI_PIP_INDEX_URL", raising=False)
+    monkeypatch.delenv("SHINSEKAI_PIP_INDEX_URLS", raising=False)
+    monkeypatch.delenv("SHINSEKAI_PIP_INSTALL_ARGS", raising=False)
+    monkeypatch.delenv("SHINSEKAI_RUNTIME_SOURCE", raising=False)
+
+    result = installer.install_plugin_requirements_txt(plugin_root)
+
+    assert result == ("pip_ok", "")
+    cmd = calls[0]["cmd"]
+    assert "--index-url" in cmd
+    assert cmd[cmd.index("--index-url") + 1] == "https://pypi.tuna.tsinghua.edu.cn/simple/"
+    assert "https://mirrors.aliyun.com/pypi/simple/" in cmd
+    assert "https://pypi.org/simple/" in cmd
+
+
 def test_install_plugin_requirements_does_not_add_env_index_when_requirements_has_index(
     monkeypatch,
     tmp_path,

@@ -39,7 +39,13 @@ def test_desktop_core_runtime_check_does_not_import_optional_packages(tmp_path):
 
         builtins.__import__ = guarded_import
 
-        from frontend_bridge import runtime_check_report
+        import frontend_bridge
+
+        def fake_distribution_version(requirement):
+            return "0"
+
+        frontend_bridge.importlib.metadata.version = fake_distribution_version
+        runtime_check_report = frontend_bridge.runtime_check_report
 
         report = runtime_check_report(
             project_root={str(tmp_path)!r},
@@ -239,6 +245,31 @@ def test_install_runtime_dependency_uses_runtime_pip_index_and_extra_args(monkey
         "mirror.example",
     ]
     assert calls[0][1]["env"]["PYTHONUTF8"] == "1"
+
+
+def test_install_runtime_dependency_uses_manifest_china_index_by_default(monkeypatch):
+    from frontend_bridge_core import runtime_dependencies
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.delenv("PIP_INDEX_URL", raising=False)
+    monkeypatch.delenv("PIP_CONFIG_FILE", raising=False)
+    monkeypatch.delenv("SHINSEKAI_PIP_INDEX_URL", raising=False)
+    monkeypatch.delenv("SHINSEKAI_PIP_INDEX_URLS", raising=False)
+    monkeypatch.delenv("SHINSEKAI_PIP_INSTALL_ARGS", raising=False)
+    monkeypatch.delenv("SHINSEKAI_RUNTIME_SOURCE", raising=False)
+    monkeypatch.setattr(runtime_dependencies.subprocess, "run", fake_run)
+
+    runtime_dependencies.install_runtime_dependency("openai")
+
+    assert "-i" in calls[0]
+    assert calls[0][calls[0].index("-i") + 1] == "https://pypi.tuna.tsinghua.edu.cn/simple/"
+    assert "https://mirrors.aliyun.com/pypi/simple/" in calls[0]
+    assert "https://pypi.org/simple/" in calls[0]
 
 
 def test_install_runtime_dependency_does_not_add_index_when_pip_args_pick_one(monkeypatch):

@@ -8,6 +8,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from core.plugins.pip_index_config import (
+    has_explicit_pip_index as _has_explicit_pip_index,
+    pip_index_args as _configured_pip_index_args,
+)
+
 
 _NO_MODULE_PATTERNS = (
     re.compile(r"(?:ModuleNotFoundError|ImportError):\s+No module named ['\"]([^'\"]+)['\"]"),
@@ -15,7 +20,6 @@ _NO_MODULE_PATTERNS = (
 )
 _SAFE_PACKAGE_RE = re.compile(r"^[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?$")
 _URL_CREDENTIAL_RE = re.compile(r"(?P<scheme>https?://)(?P<user>[^:/\s@]+)(?::(?P<password>[^@\s/]+))?@")
-_PIP_INDEX_FLAGS = frozenset({"-i", "--index-url", "--no-index"})
 
 MODULE_PACKAGE_MAP = {
     "PIL": "Pillow",
@@ -72,25 +76,14 @@ def _redact_url_credentials(text: str) -> str:
     return _URL_CREDENTIAL_RE.sub(lambda match: f"{match.group('scheme')}{match.group('user')}:***@", text or "")
 
 
-def _has_explicit_pip_index(args: list[str]) -> bool:
-    for arg in args:
-        if arg in _PIP_INDEX_FLAGS:
-            return True
-        if arg.startswith("--index-url="):
-            return True
-        if arg.startswith("-i") and arg != "-i":
-            return True
-    return False
-
-
 def _runtime_pip_install_cmd(package_name: str) -> list[str]:
     extra_args_text = os.environ.get("SHINSEKAI_PIP_INSTALL_ARGS", "")
     extra_args = shlex.split(extra_args_text) if extra_args_text.strip() else []
 
     cmd = [sys.executable, "-m", "pip", "install", package_name]
-    index_url = os.environ.get("SHINSEKAI_PIP_INDEX_URL", "").strip()
-    if index_url and not _has_explicit_pip_index([package_name, *extra_args]):
-        cmd.extend(["-i", index_url])
+    index_args = _configured_pip_index_args(primary_flag="-i")
+    if index_args and not _has_explicit_pip_index([package_name, *extra_args]):
+        cmd.extend(index_args)
     cmd.extend(extra_args)
     return cmd
 

@@ -17,6 +17,11 @@ import threading
 import time
 from pathlib import Path
 
+from core.plugins.pip_index_config import (
+    has_explicit_pip_index as _has_explicit_pip_index,
+    pip_index_args as _configured_pip_index_args,
+)
+
 try:
     from packaging.requirements import InvalidRequirement, Requirement
 except Exception:  # pragma: no cover - fallback for minimal embedded runtimes.
@@ -28,7 +33,6 @@ logger = logging.getLogger(__name__)
 _PIP_DETAIL_MAX = 1600
 _TORCH_PROJECT_NAMES = frozenset({"torch", "torchvision", "torchaudio"})
 _CUDA_VER_LINE_RE = re.compile(r"CUDA Version:\s*(\d+)\.(\d+)")
-_PIP_INDEX_FLAGS = frozenset({"-i", "--index-url", "--no-index"})
 _PIP_CONFLICT_RE = re.compile(
     r"\b(conflict(?:ing)? dependencies|resolutionimpossible|cannot install|dependency conflict)\b",
     re.IGNORECASE,
@@ -236,17 +240,6 @@ def _canonical_distribution_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).strip("-").lower()
 
 
-def _has_explicit_pip_index(args: list[str]) -> bool:
-    for arg in args:
-        if arg in _PIP_INDEX_FLAGS:
-            return True
-        if arg.startswith("--index-url="):
-            return True
-        if arg.startswith("-i") and arg != "-i":
-            return True
-    return False
-
-
 def _requirements_lines_define_index(lines: list[str]) -> bool:
     for raw_line in lines:
         line = _strip_inline_requirement_comment(raw_line)
@@ -271,14 +264,14 @@ def _extra_pip_install_args() -> list[str]:
 def _apply_pip_index_and_extra_args(cmd: list[str], requirement_lines: list[str]) -> list[str]:
     final_cmd = list(cmd)
     extra_args = _extra_pip_install_args()
-    index_url = os.environ.get("SHINSEKAI_PIP_INDEX_URL", "").strip()
+    index_args = _configured_pip_index_args(primary_flag="--index-url")
     if (
-        index_url
+        index_args
         and not _has_explicit_pip_index(final_cmd)
         and not _requirements_lines_define_index(requirement_lines)
         and not _has_explicit_pip_index(extra_args)
     ):
-        final_cmd.extend(["--index-url", index_url])
+        final_cmd.extend(index_args)
     final_cmd.extend(extra_args)
     return final_cmd
 
