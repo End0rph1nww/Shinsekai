@@ -342,7 +342,9 @@ export function PluginCatalogPanel({
           <div className="plugin-market-card__identity">
             <div className="plugin-market-card__title-row">
               <h3 title={displayName}>{displayName}</h3>
-              {plugin.version ? <span className="plugin-market-badge">v{plugin.version.replace(/^v/i, "")}</span> : null}
+              {plugin.version ? (
+                <span className="plugin-market-badge">v{plugin.version.replace(/^v/i, "")}</span>
+              ) : null}
             </div>
             <span className="plugin-market-card__id" title={plugin.name}>
               {plugin.name}
@@ -407,13 +409,17 @@ export function PluginCatalogPanel({
             </span>
           ))}
           {catalogTags(plugin).length > tags.length ? (
-            <span className="plugin-market-chip plugin-market-chip--muted">+{catalogTags(plugin).length - tags.length}</span>
+            <span className="plugin-market-chip plugin-market-chip--muted">
+              +{catalogTags(plugin).length - tags.length}
+            </span>
           ) : null}
         </div>
 
         <div className="plugin-market-card__foot">
           <span className="plugin-market-card__source" title={plugin.repo || plugin.entry || ""}>
-            {officialPackage ? compactSha(plugin.packageSha256 || plugin.sha256) || "official package" : plugin.repo || plugin.entry}
+            {officialPackage
+              ? compactSha(plugin.packageSha256 || plugin.sha256) || "official package"
+              : plugin.repo || plugin.entry}
           </span>
           <div className="inline-actions">
             <AsyncButton
@@ -583,9 +589,7 @@ export function PluginCatalogPanel({
                   <div className="plugin-market-card__title-row">
                     <h3>{catalogDisplayName(pendingCatalogInstall)}</h3>
                     {pendingCatalogInstall.version ? (
-                      <span className="plugin-market-badge">
-                        v{pendingCatalogInstall.version.replace(/^v/i, "")}
-                      </span>
+                      <span className="plugin-market-badge">v{pendingCatalogInstall.version.replace(/^v/i, "")}</span>
                     ) : null}
                   </div>
                   <span className="plugin-market-card__id">{pendingCatalogInstall.name}</span>
@@ -617,7 +621,9 @@ export function PluginCatalogPanel({
                 </dl>
               ) : (
                 <>
-                  <p className="inline-status">{t("plugin.appUpdate.repo", { repo: pendingCatalogInstall.repo ?? "-" })}</p>
+                  <p className="inline-status">
+                    {t("plugin.appUpdate.repo", { repo: pendingCatalogInstall.repo ?? "-" })}
+                  </p>
                   <label className="field-row field-row--stack">
                     <span className="field-row__label">{t("plugin.appUpdate.ref")}</span>
                     <span className="field-row__control">
