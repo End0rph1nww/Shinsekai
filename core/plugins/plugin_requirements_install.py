@@ -306,6 +306,7 @@ def _requirement_distribution_version(name: str) -> str | None:
     paths = list(sys.path)
     target = plugin_pip_target_directory()
     if target is not None and target.is_dir():
+        # 打包版插件依赖会装进 data/plugin_site_packages，先查这里再看系统路径。
         target_s = str(target.resolve())
         paths = [target_s, *[path for path in paths if path != target_s]]
     for distribution in importlib_metadata.distributions(path=paths):
@@ -318,6 +319,7 @@ def _requirement_distribution_version(name: str) -> str | None:
 
 
 def _requirement_line_is_satisfied(line: str) -> bool:
+    # 这里尽量按 PEP 508 判断：marker 不匹配就视为无需安装，版本不满足才进入 pip。
     stripped = _strip_inline_requirement_comment(line)
     if not stripped:
         return True
@@ -340,6 +342,8 @@ def _requirement_line_is_satisfied(line: str) -> bool:
 
 
 def _install_lines_after_precheck(lines: list[str]) -> tuple[bool, list[str]]:
+    # requirements 里出现 -e、--find-links、direct reference 等全局/本地语义时，不做裁剪。
+    # 这些行可能影响后续包解析，强行只装“缺失行”反而会破坏作者的安装意图。
     if not all(_requirement_line_can_be_pruned(line) for line in lines):
         return False, lines
     install_lines: list[str] = []
@@ -353,6 +357,7 @@ def _install_lines_after_precheck(lines: list[str]) -> tuple[bool, list[str]]:
 
 
 def _classify_pip_result(result: tuple[str, str]) -> tuple[str, str]:
+    # 依赖求解冲突单独分类，前端可以提示“版本冲突”，而不是笼统显示 pip failed。
     code, detail = result
     if code == "pip_failed" and _PIP_CONFLICT_RE.search(detail or ""):
         return ("pip_conflict", detail)
@@ -492,6 +497,8 @@ def install_plugin_requirements_txt(
         logger.warning("Could not read %s: %s", req, exc)
         return ("pip_exception", str(exc))
 
+    # 先在本地分发信息里做预检，普通包只把“缺失或版本不满足”的行交给 pip。
+    # 这样已安装依赖不会反复下载，国内用户装插件时能少等很多。
     can_prune, install_lines = _install_lines_after_precheck(lines)
     if can_prune and not install_lines:
         logger.info("Plugin pip: all requirements already satisfied, skipping install.")
@@ -501,6 +508,7 @@ def install_plugin_requirements_txt(
     active_lines = lines
     precheck_tf: Path | None = None
     if can_prune:
+        # pip 仍然只认识 requirements 文件，所以把裁剪后的缺失列表写入临时文件。
         fd, precheck_tf_str = tempfile.mkstemp(
             prefix="easyai_missing_req_", suffix=".txt"
         )
@@ -517,6 +525,8 @@ def install_plugin_requirements_txt(
     other_tf: Path | None = None
     try:
         if split_torch:
+            # torch/torchvision/torchaudio 不走普通 PyPI 镜像。
+            # 这里先按本机 CUDA/CPU 选择 PyTorch 官方 wheel index，再安装剩余依赖。
             idx_url, idx_reason = _pytorch_wheel_index_url_for_this_machine()
             logger.info(
                 "Plugin pip: PyTorch packages use index %s (%s)",
