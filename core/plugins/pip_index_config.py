@@ -28,6 +28,8 @@ def has_explicit_pip_index(args: list[str]) -> bool:
 
 
 def pip_index_args(*, primary_flag: str = "--index-url") -> list[str]:
+    # 这里返回的是给 pip 命令直接拼接的参数。
+    # 第一个源做主源，其余源作为 extra index；不是应用层自己轮询。
     urls = pip_index_urls()
     if not urls:
         return []
@@ -38,14 +40,17 @@ def pip_index_args(*, primary_flag: str = "--index-url") -> list[str]:
 
 
 def pip_index_urls(source_root: Path | None = None) -> list[str]:
-    """Return configured pip indexes, preferring domestic mirrors by default."""
+    """返回本次依赖安装使用的 pip index 列表，默认优先国内镜像。"""
+    # 用户已经通过 pip 环境变量或 pip.conf 做了全局配置时，应用不再抢配置。
     if os.environ.get("PIP_INDEX_URL") or os.environ.get("PIP_CONFIG_FILE"):
         return []
 
+    # 应用自己的显式环境变量优先级最高，方便 CI、开发机或高级用户覆盖。
     custom_urls = _configured_urls_from_env()
     if custom_urls:
         return custom_urls
 
+    # 默认读取 Tauri runtime manifest，让打包运行时和插件依赖安装共用同一套源。
     official, china = _manifest_pip_indexes(source_root)
     source = os.environ.get("SHINSEKAI_RUNTIME_SOURCE", "").strip().lower()
     if source == "official":
@@ -64,6 +69,7 @@ def _configured_urls_from_env() -> list[str]:
 
 
 def _manifest_pip_indexes(source_root: Path | None) -> tuple[list[str], list[str]]:
+    # manifest 不存在时也保留内置兜底，避免源码运行或测试环境直接掉回官方 PyPI。
     manifest = _load_runtime_manifest(source_root)
     if not isinstance(manifest, dict):
         return _DEFAULT_OFFICIAL_INDEXES, _DEFAULT_CHINA_INDEXES
