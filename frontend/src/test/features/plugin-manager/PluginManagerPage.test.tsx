@@ -315,6 +315,73 @@ describe("PluginManagerPage", () => {
     expect(within(card).queryByRole("button", { name: "Update" })).toBeNull();
   });
 
+  it("does not show an update action on the discover card when the installed package hash matches", async () => {
+    const installedPlugin = {
+      ...plainPlugin,
+      entry: "plugins.registry_display.plugin:RegistryDisplayPlugin",
+      id: "registry_display",
+      install: {
+        packageSha256: "abcdef1234567890",
+        sourceType: "official-package",
+      },
+      title: "Registry Display",
+      version: "0.1.0",
+    };
+    mockListPlugins.mockResolvedValue([installedPlugin]);
+    mockListPluginCatalog.mockResolvedValue([
+      {
+        ...catalogItem,
+        downloaded: true,
+        entry: installedPlugin.entry,
+        installed: true,
+        version: "0.2.0",
+      },
+    ]);
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: "Discover" }));
+
+    const card = (await screen.findByRole("heading", { name: "Registry Display" })).closest(
+      ".plugin-market-card",
+    ) as HTMLElement;
+    expect(within(card).queryByRole("button", { name: "Update" })).toBeNull();
+    expect(within(card).getByRole("button", { name: "Installed" })).toBeDisabled();
+  });
+
+  it("shows an update action on the discover card when the installed package hash differs", async () => {
+    const installedPlugin = {
+      ...plainPlugin,
+      entry: "plugins.registry_display.plugin:RegistryDisplayPlugin",
+      id: "registry_display",
+      install: {
+        packageSha256: "old-package-sha",
+        sourceType: "official-package",
+      },
+      title: "Registry Display",
+      version: "0.2.0",
+    };
+    mockListPlugins.mockResolvedValue([installedPlugin]);
+    mockListPluginCatalog.mockResolvedValue([
+      {
+        ...catalogItem,
+        downloaded: true,
+        entry: installedPlugin.entry,
+        installed: true,
+        version: "0.2.0",
+      },
+    ]);
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: "Discover" }));
+
+    const card = (await screen.findByRole("heading", { name: "Registry Display" })).closest(
+      ".plugin-market-card",
+    ) as HTMLElement;
+    fireEvent.click(await within(card).findByRole("button", { name: "Update" }));
+
+    expect(await screen.findByRole("heading", { name: "Choose plugin version" })).toBeInTheDocument();
+  });
+
   it("shows an update when the catalog package hash differs even if the version did not change", async () => {
     const installedPlugin = {
       ...plainPlugin,

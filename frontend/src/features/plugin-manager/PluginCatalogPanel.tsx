@@ -62,9 +62,16 @@ interface PluginCatalogPanelProps {
   >;
   appUpdateTask: TaskSnapshot<AppUpdateResult> | null;
   catalogQuery: ReturnType<typeof useQuery<PluginCatalogItem[]>>;
+  getCatalogInstallState: (plugin: PluginCatalogItem) => PluginCatalogInstallState;
   installMutation: ReturnType<typeof useMutation<PluginManifest, Error, string | PluginInstallInput>>;
   installingSource: string;
   onOpenCatalogInstall: (plugin: PluginCatalogItem) => void;
+}
+
+interface PluginCatalogInstallState {
+  downloaded: boolean;
+  installed: boolean;
+  updateAvailable: boolean;
 }
 
 type DesktopUpdateDialogStatus =
@@ -402,6 +409,7 @@ export function PluginCatalogPanel({
   appUpdateMutation,
   appUpdateTask,
   catalogQuery,
+  getCatalogInstallState,
   installMutation,
   installingSource,
   onOpenCatalogInstall,
@@ -573,7 +581,22 @@ export function PluginCatalogPanel({
     const packageSize = formatBytes(plugin.packageSize ?? plugin.size);
     const tags = catalogTags(plugin).slice(0, 4);
     const officialPackage = hasOfficialPackage(plugin);
-    const installed = plugin.installed || plugin.downloaded;
+    const installState = getCatalogInstallState(plugin);
+    const installed = installState.installed || installState.downloaded;
+    const updateAvailable = installed && installState.updateAvailable;
+    const installActionDisabled = installed && !updateAvailable;
+    const actionLabel = updateAvailable
+      ? t("plugin.action.update")
+      : installed
+        ? installState.installed
+          ? t("plugin.status.installed")
+          : t("plugin.status.downloaded")
+        : t("plugin.action.install");
+    const pluginForInstallDialog = {
+      ...plugin,
+      downloaded: installState.downloaded,
+      installed: installState.installed,
+    };
     const scanPassed = securityScanPassed(plugin);
 
     return (
@@ -682,19 +705,22 @@ export function PluginCatalogPanel({
           </span>
           <div className="inline-actions">
             <AsyncButton
-              disabled={actionDisabled}
+              disabled={actionDisabled || installActionDisabled}
               icon={<DownloadCloud aria-hidden className="button__icon" />}
               loading={installMutation.isPending && installingSource === source}
               onClick={() => {
+                if (installActionDisabled) {
+                  return;
+                }
                 if (plugin.repo || officialPackage) {
-                  onOpenCatalogInstall(plugin);
+                  onOpenCatalogInstall(pluginForInstallDialog);
                   return;
                 }
                 installMutation.mutate(source);
               }}
               variant="primary"
             >
-              {plugin.downloaded ? t("plugin.action.update") : t("plugin.action.install")}
+              {actionLabel}
             </AsyncButton>
             <Button
               disabled={!url}

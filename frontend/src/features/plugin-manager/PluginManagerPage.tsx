@@ -132,6 +132,18 @@ function findInstalledCatalogMatch(plugin: PluginManifest, catalogItems: PluginC
   });
 }
 
+function findCatalogInstalledMatch(catalog: PluginCatalogItem, plugins: PluginManifest[]) {
+  const catalogKeys = catalogPluginKeys(catalog);
+  return plugins.find((plugin) => {
+    for (const key of installedPluginKeys(plugin)) {
+      if (catalogKeys.has(key)) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
 function pluginLogoText(title: string) {
   return title
     .split(/[\s_-]+/)
@@ -397,6 +409,19 @@ export function PluginManagerPage() {
 
   const pluginBusy = toggleMutation.isPending || uninstallMutation.isPending;
   const desktopApp = isTauriDesktop();
+  const getCatalogInstallState = useCallback(
+    (catalog: PluginCatalogItem) => {
+      const installedPlugin = findCatalogInstalledMatch(catalog, data);
+      const installed = Boolean(catalog.installed || installedPlugin);
+      const downloaded = Boolean(catalog.downloaded);
+      return {
+        downloaded,
+        installed,
+        updateAvailable: (downloaded || installed) && hasCatalogUpdate(catalog, installedPlugin ?? null),
+      };
+    },
+    [data],
+  );
 
   const handleReloadPlugins = async () => {
     setPluginReloadPending(true);
@@ -488,6 +513,7 @@ export function PluginManagerPage() {
           appUpdateMutation={appUpdateMutation}
           appUpdateTask={appUpdateTask}
           catalogQuery={catalogQuery}
+          getCatalogInstallState={getCatalogInstallState}
           installMutation={installMutation}
           installingSource={installingSource}
           onOpenCatalogInstall={openCatalogInstallDialog}
