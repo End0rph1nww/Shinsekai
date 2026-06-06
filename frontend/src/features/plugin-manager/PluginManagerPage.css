@@ -532,6 +532,30 @@
   color: var(--color-info);
 }
 
+.plugin-market-badge--trust-verified {
+  border-color: var(--color-success-border);
+  background: rgba(60 179 113 / 0.12);
+  color: var(--color-success);
+}
+
+.plugin-market-badge--trust-community {
+  border-color: var(--color-accent-border);
+  background: rgba(255 125 178 / 0.1);
+  color: var(--color-accent-primary);
+}
+
+.plugin-market-badge--trust-pending {
+  border-color: var(--color-warning-border);
+  background: rgba(237 168 64 / 0.12);
+  color: var(--color-warning);
+}
+
+.plugin-market-badge--trust-blocked {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
 .plugin-market-chip {
   min-width: 0;
   overflow: hidden;
@@ -547,6 +571,46 @@
   display: grid;
   gap: var(--space-3);
   min-width: min(520px, 72vw);
+}
+
+.plugin-market-install-warning {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-accent-border);
+  border-radius: 10px;
+  background: rgba(255 125 178 / 0.09);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.plugin-market-install-warning strong {
+  color: var(--color-accent-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plugin-market-install-warning span {
+  color: var(--color-text-muted);
+}
+
+.plugin-market-install-warning[data-kind="pending"] {
+  border-color: var(--color-warning-border);
+  background: rgba(237 168 64 / 0.1);
+}
+
+.plugin-market-install-warning[data-kind="pending"] strong {
+  color: var(--color-warning);
+}
+
+.plugin-market-install-warning[data-kind="blocked"] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.plugin-market-install-warning[data-kind="blocked"] strong {
+  color: var(--color-danger);
 }
 
 .plugin-market-package-grid {

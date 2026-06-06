@@ -272,8 +272,11 @@ def _plugin_registry_rows() -> list[dict[str, Any]]:
                 "stars": int(getattr(rec, "stars", 0) or 0),
                 "supportPlatforms": list(getattr(rec, "support_platforms", None) or []),
                 "tags": list(getattr(rec, "tags", None) or []),
+                "trustLevel": str(getattr(rec, "trust_level", "") or "community"),
                 "updatedAt": str(getattr(rec, "updated_at", "") or ""),
+                "verified": bool(getattr(rec, "verified", False)),
                 "version": str(getattr(rec, "version", "") or ""),
+                "review": getattr(rec, "review", None),
             }
         )
     return rows

@@ -60,6 +60,9 @@ class RegistryPluginRecord:
     package_size: int | None = None
     package_r2_key: str = ""
     security_scan: dict[str, Any] | None = None
+    trust_level: str = "community"
+    verified: bool = False
+    review: dict[str, Any] | None = None
 
     def github_url(self) -> str:
         from core.plugins.registry_download import normalize_repo_slug
@@ -115,6 +118,18 @@ def _as_string_list(value: Any) -> list[str]:
 
 def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _as_optional_dict(value: Any) -> dict[str, Any] | None:
+    return value if isinstance(value, dict) else None
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
 
 
 def _registry_items(raw: Any) -> list[tuple[str, dict[str, Any]]]:
@@ -198,6 +213,9 @@ def parse_registry_plugins(raw: Any) -> list[RegistryPluginRecord]:
                 package_size=package_size,
                 package_r2_key=_as_string(package.get("r2_key") or package.get("r2Key")),
                 security_scan=_as_dict(item.get("sec_scan") or item.get("securityScan")),
+                trust_level=_as_string(item.get("trust_level") or item.get("trustLevel"), "community") or "community",
+                verified=_as_bool(item.get("verified")),
+                review=_as_optional_dict(item.get("review")),
             )
         )
     return out

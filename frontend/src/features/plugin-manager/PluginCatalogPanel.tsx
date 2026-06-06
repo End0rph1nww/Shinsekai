@@ -9,6 +9,7 @@ import {
   GitBranch,
   PackageCheck,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   Star,
   Tag,
@@ -77,6 +78,7 @@ type DesktopUpdateDialogStatus =
 
 type I18nT = ReturnType<typeof useI18n>["t"];
 type DesktopUpdateErrorFallback = "plugin.desktopUpdate.checkFailed" | "plugin.desktopUpdate.installFailed";
+type PluginTrustState = "verified" | "community" | "pending" | "blocked";
 
 const CATALOG_PAGE_SIZE = 10;
 
@@ -128,8 +130,82 @@ function securityScanPassed(plugin: PluginCatalogItem) {
   });
 }
 
+function pluginTrustState(plugin: PluginCatalogItem | null | undefined): PluginTrustState {
+  const raw = (plugin?.trustLevel ?? "").trim().toLowerCase();
+  if (raw === "blocked") {
+    return "blocked";
+  }
+  if (raw === "verified_update_pending" || raw === "pending_review" || raw === "pending") {
+    return "pending";
+  }
+  if (raw === "verified" && plugin?.verified === true) {
+    return "verified";
+  }
+  return "community";
+}
+
+function catalogTrustNotice(plugin: PluginCatalogItem | null | undefined) {
+  const state = pluginTrustState(plugin);
+  if (state === "community") {
+    return {
+      body: "CI / 查毒通过不等于人工验证。插件可能读取本地配置、访问网络、安装依赖；安装前请确认作者和仓库可信。",
+      kind: "community",
+      title: "Community plugin",
+    };
+  }
+  if (state === "pending") {
+    return {
+      body: "这个插件曾经通过验证，但当前版本或 commit 还在等待复审。建议确认更新来源后再继续安装。",
+      kind: "pending",
+      title: "Pending review",
+    };
+  }
+  if (state === "blocked") {
+    return {
+      body: "Registry 已将这个插件标记为 Blocked。除非你完全确认风险来源，否则不要安装。",
+      kind: "blocked",
+      title: "Blocked",
+    };
+  }
+  return null;
+}
+
 function catalogKey(plugin: PluginCatalogItem) {
   return plugin.id || plugin.name || plugin.repo || plugin.entry;
+}
+
+function CatalogTrustBadge({ plugin }: { plugin: PluginCatalogItem }) {
+  const state = pluginTrustState(plugin);
+  if (state === "verified") {
+    return (
+      <span className="plugin-market-badge plugin-market-badge--trust-verified">
+        <ShieldCheck aria-hidden size={13} />
+        Verified
+      </span>
+    );
+  }
+  if (state === "pending") {
+    return (
+      <span className="plugin-market-badge plugin-market-badge--trust-pending">
+        <Clock3 aria-hidden size={13} />
+        Pending Review
+      </span>
+    );
+  }
+  if (state === "blocked") {
+    return (
+      <span className="plugin-market-badge plugin-market-badge--trust-blocked">
+        <ShieldAlert aria-hidden size={13} />
+        Blocked
+      </span>
+    );
+  }
+  return (
+    <span className="plugin-market-badge plugin-market-badge--trust-community">
+      <UserRound aria-hidden size={13} />
+      Community
+    </span>
+  );
 }
 
 export function PluginCatalogPanel({
@@ -209,6 +285,7 @@ export function PluginCatalogPanel({
 
   const appUpdateInfo = appUpdateInfoQuery.data;
   const catalogInstallDone = Boolean(pendingCatalogInstall && installMutation.isSuccess && !installMutation.isPending);
+  const catalogInstallNotice = catalogTrustNotice(pendingCatalogInstall);
   const appUpdateDone = !desktopApp && pendingAppUpdate && appUpdateMutation.isSuccess && !appUpdateMutation.isPending;
   const desktopUpdateBusy =
     desktopApp &&
@@ -355,6 +432,7 @@ export function PluginCatalogPanel({
         <p className="plugin-market-card__description">{catalogDescription(plugin) || plugin.repo || plugin.entry}</p>
 
         <div className="plugin-market-card__badges" aria-label="Plugin metadata">
+          <CatalogTrustBadge plugin={plugin} />
           {officialPackage ? (
             <span className="plugin-market-badge plugin-market-badge--official">
               <PackageCheck aria-hidden size={13} />
@@ -591,6 +669,7 @@ export function PluginCatalogPanel({
                     {pendingCatalogInstall.version ? (
                       <span className="plugin-market-badge">v{pendingCatalogInstall.version.replace(/^v/i, "")}</span>
                     ) : null}
+                    <CatalogTrustBadge plugin={pendingCatalogInstall} />
                   </div>
                   <span className="plugin-market-card__id">{pendingCatalogInstall.name}</span>
                 </div>
@@ -598,6 +677,16 @@ export function PluginCatalogPanel({
               <p className="plugin-card__description">
                 {catalogDescription(pendingCatalogInstall) || pendingCatalogInstall.repo || pendingCatalogInstall.entry}
               </p>
+              {catalogInstallNotice ? (
+                <div
+                  className="plugin-market-install-warning"
+                  data-kind={catalogInstallNotice.kind}
+                  role={pluginTrustState(pendingCatalogInstall) === "blocked" ? "alert" : "note"}
+                >
+                  <strong>{catalogInstallNotice.title}</strong>
+                  <span>{catalogInstallNotice.body}</span>
+                </div>
+              ) : null}
               {hasOfficialPackage(pendingCatalogInstall) ? (
                 <dl className="plugin-market-package-grid">
                   <div>

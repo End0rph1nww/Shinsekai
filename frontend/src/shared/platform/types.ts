@@ -190,6 +190,7 @@ export interface PluginCatalogItem {
   packageUrl?: string;
   readmeUrl?: string;
   repo: string;
+  review?: Record<string, unknown>;
   securityScan?: Record<string, unknown>;
   sha256?: string;
   shinsekaiVersion?: string;
@@ -200,7 +201,9 @@ export interface PluginCatalogItem {
   stars?: number;
   supportPlatforms?: string[];
   tags?: string[];
+  trustLevel?: string;
   updatedAt?: string;
+  verified?: boolean;
   version?: string;
 }
 
