@@ -9,6 +9,7 @@ from .validate import normalize_submission
 
 
 ISSUE_TEMPLATE = "PLUGIN_PUBLISH.yml"
+ISSUE_FORM_PLUGIN_INFO_FIELD = "plugin-info"
 STAGING_SUBMIT_URL = f"https://github.com/End0rph1nww/Shinsekai-Plugin-Registry/issues/new?template={ISSUE_TEMPLATE}"
 UPSTREAM_SUBMIT_URL = f"https://github.com/RachelForster/Shinsekai-Plugin-Registry/issues/new?template={ISSUE_TEMPLATE}"
 
@@ -37,7 +38,7 @@ def build_issue_url(payload: dict[str, Any], base_url: str | None = None) -> str
     query = dict(parse_qsl(split.query, keep_blank_values=True))
     query.setdefault("template", ISSUE_TEMPLATE)
     query["title"] = f"[Plugin] {normalized['display_name']}"
-    query["body"] = f"```json\n{json.dumps(normalized, ensure_ascii=False, indent=2)}\n```\n"
+    query[ISSUE_FORM_PLUGIN_INFO_FIELD] = f"```json\n{json.dumps(normalized, ensure_ascii=False, indent=2)}\n```\n"
     return urlunsplit((split.scheme, split.netloc, split.path, urlencode(query), split.fragment))
 
 

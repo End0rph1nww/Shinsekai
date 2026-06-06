@@ -172,6 +172,18 @@
   width: min(980px, 100%);
 }
 
+.plugin-publisher-dialog .dialog__header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  align-items: flex-start;
+  background: var(--color-bg-sidebar);
+}
+
+.plugin-publisher-dialog .dialog__header-actions {
+  flex: 1 1 auto;
+}
+
 .plugin-publisher-dialog__body {
   display: grid;
   gap: var(--space-4);
@@ -804,6 +816,16 @@
   .plugin-publisher-layout,
   .plugin-publisher-form {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plugin-publisher-dialog .dialog__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .plugin-publisher-dialog .dialog__header-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .plugin-publisher-preview pre {

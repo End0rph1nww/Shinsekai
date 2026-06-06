@@ -161,7 +161,7 @@ function previewPluginSubmissionJson(input: PluginSubmissionInput) {
 function previewPluginIssueUrl(input: PluginSubmissionInput) {
   const submission = normalizePreviewPluginSubmission(input);
   const params = new URLSearchParams({
-    body: ["```json", previewPluginSubmissionJson(submission), "```", ""].join("\n"),
+    "plugin-info": ["```json", previewPluginSubmissionJson(submission), "```", ""].join("\n"),
     template: "PLUGIN_PUBLISH.yml",
     title: `[Plugin] ${submission.display_name}`,
   });
@@ -913,15 +913,15 @@ export function createBrowserPreviewPlatform(): ShinsekaiPlatform {
       scanLocal(input) {
         const baseName = input.path.split(/[\\/]/).filter(Boolean).pop() || "preview-plugin";
         return delay({
-          author: "End0rph1nww",
+          author: "Shinsekai",
           desc: "Preview submission generated from a local plugin folder.",
           display_name: baseName.replace(/[-_]+/g, " "),
           entry: `plugins.${baseName.replace(/[^A-Za-z0-9_]/g, "_")}.plugin:PreviewPlugin`,
           logo: "",
           path: input.path,
-          repo: `https://github.com/End0rph1nww/${baseName}`,
+          repo: `https://github.com/RachelForster/${baseName}`,
           requirements: "",
-          social_link: "https://github.com/End0rph1nww",
+          social_link: "https://github.com/RachelForster",
           tags: ["preview"],
           warnings: ["Browser preview uses sample metadata and does not read local files."],
         });

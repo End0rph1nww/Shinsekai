@@ -190,7 +190,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
       bodyClassName="plugin-publisher-dialog__body"
       className="plugin-publisher-dialog"
       closeLabel={t("common.close")}
-      footer={
+      headerActions={
         <>
           <Button onClick={onClose}>{t("common.cancel")}</Button>
           <AsyncButton
@@ -242,6 +242,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
           />
         </label>
         <AsyncButton
+          aria-label="Scan folder"
           icon={<ScanLine aria-hidden className="button__icon" />}
           loading={busyAction === "scan"}
           onClick={() => void handleScan()}
@@ -258,7 +259,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("displayName", event.target.value)}
-              placeholder="Shinsekai Cloud TTS"
+              placeholder="Whisper Asr"
               value={form.displayName}
             />
           </label>
@@ -267,7 +268,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("author", event.target.value)}
-              placeholder="End0rph1nww"
+              placeholder="RachelForster"
               value={form.author}
             />
           </label>
@@ -276,7 +277,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("repo", event.target.value)}
-              placeholder="https://github.com/End0rph1nww/shinsekai-cloud-tts"
+              placeholder="https://github.com/RachelForster/Shinsekai"
               value={form.repo}
             />
           </label>
@@ -285,7 +286,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("entry", event.target.value)}
-              placeholder="plugins.cloud_tts.plugin:CloudTTSPlugin"
+              placeholder="plugins.whisper_asr.plugin:WhisperAsrPlugin"
               value={form.entry}
             />
           </label>
@@ -316,7 +317,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("socialLink", event.target.value)}
-              placeholder="https://github.com/End0rph1nww"
+              placeholder="https://github.com/RachelForster"
               value={form.socialLink}
             />
           </label>

@@ -28,9 +28,9 @@ def valid_submission(**overrides):
     return payload
 
 
-def issue_body_json(issue_url):
+def issue_form_json(issue_url):
     query = parse_qs(urlparse(issue_url).query)
-    body = query["body"][0]
+    body = query["plugin-info"][0]
     json_text = body.split("\n", 1)[1].rsplit("\n```", 1)[0]
     return json.loads(json_text)
 
@@ -122,7 +122,8 @@ def test_build_issue_url_defaults_to_staging_registry_fork(monkeypatch):
     assert parsed.path == "/End0rph1nww/Shinsekai-Plugin-Registry/issues/new"
     assert query["template"] == ["PLUGIN_PUBLISH.yml"]
     assert query["title"] == ["[Plugin] Demo Plugin"]
-    assert issue_body_json(issue_url) == normalize_submission(valid_submission())
+    assert "body" not in query
+    assert issue_form_json(issue_url) == normalize_submission(valid_submission())
 
 
 def test_build_issue_url_targets_upstream_registry_when_configured(monkeypatch):
@@ -165,4 +166,4 @@ def test_frontend_bridge_build_issue_url_returns_frontend_payload(monkeypatch):
     assert result["issueUrl"].startswith(
         "https://github.com/End0rph1nww/Shinsekai-Plugin-Registry/issues/new"
     )
-    assert issue_body_json(result["issueUrl"]) == expected
+    assert issue_form_json(result["issueUrl"]) == expected
