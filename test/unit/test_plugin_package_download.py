@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from core.plugins.package_download import install_registry_package_under_plugins
+from core.plugins.package_download import PluginPackageNonFallbackError, install_registry_package_under_plugins
 from core.plugins.registry_catalog import RegistryPluginRecord
 
 
@@ -58,7 +58,7 @@ def test_install_registry_package_rejects_checksum_mismatch(tmp_path, monkeypatc
     body = _zip_bytes({"demo-root/plugin.py": "class DemoPlugin(PluginBase):\n    pass\n"})
     monkeypatch.setattr("core.plugins.package_download._read_url", lambda *args, **kwargs: body)
 
-    with pytest.raises(ValueError, match="checksum"):
+    with pytest.raises(PluginPackageNonFallbackError, match="checksum"):
         install_registry_package_under_plugins(
             _record(
                 "https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip",
@@ -73,7 +73,7 @@ def test_install_registry_package_rejects_zip_slip(tmp_path, monkeypatch):
     body = _zip_bytes({"demo-root/../escape.py": "bad"})
     monkeypatch.setattr("core.plugins.package_download._read_url", lambda *args, **kwargs: body)
 
-    with pytest.raises(ValueError, match="unsafe"):
+    with pytest.raises(PluginPackageNonFallbackError, match="unsafe"):
         install_registry_package_under_plugins(
             _record("https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip", body),
             plugins_parent=tmp_path,
@@ -86,7 +86,7 @@ def test_install_registry_package_enforces_host_allowlist(tmp_path, monkeypatch)
     monkeypatch.setenv("SHINSEKAI_PLUGIN_PACKAGE_HOSTS", "plugins-cdn.shinsekai.end0rph1n.icu")
     monkeypatch.setattr("core.plugins.package_download._read_url", lambda *args, **kwargs: body)
 
-    with pytest.raises(ValueError, match="not allowed"):
+    with pytest.raises(PluginPackageNonFallbackError, match="not allowed"):
         install_registry_package_under_plugins(
             _record("https://example.com/plugins/demo.zip", body),
             plugins_parent=tmp_path,

@@ -20,6 +20,18 @@ _PACKAGE_USER_AGENT = (
 _DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 
 
+class PluginPackageError(Exception):
+    """Base error for official registry package installs."""
+
+
+class PluginPackageNetworkError(PluginPackageError):
+    """A transient package download failure where GitHub fallback is allowed."""
+
+
+class PluginPackageNonFallbackError(PluginPackageError, ValueError):
+    """An official package failure that must not fall back to unverified sources."""
+
+
 def _allowed_hosts() -> set[str]:
     raw = os.environ.get("SHINSEKAI_PLUGIN_PACKAGE_HOSTS", "").strip()
     return {part.strip().lower() for part in raw.split(",") if part.strip()}
@@ -39,48 +51,53 @@ def _max_bytes() -> int:
 def _validate_package_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"}:
-        raise ValueError("plugin package URL must use http or https")
+        raise PluginPackageNonFallbackError("plugin package URL must use http or https")
     if not parsed.netloc:
-        raise ValueError("plugin package URL is missing a host")
+        raise PluginPackageNonFallbackError("plugin package URL is missing a host")
     allowed = _allowed_hosts()
     if allowed and parsed.hostname and parsed.hostname.lower() not in allowed:
-        raise ValueError(f"plugin package host is not allowed: {parsed.hostname}")
+        raise PluginPackageNonFallbackError(f"plugin package host is not allowed: {parsed.hostname}")
 
 
 def _read_url(url: str, *, timeout_sec: float = 180.0, max_bytes: int | None = None) -> bytes:
     limit = max_bytes if max_bytes is not None else _max_bytes()
     req = Request(url, headers={"User-Agent": _PACKAGE_USER_AGENT})
-    with urlopen(req, timeout=timeout_sec) as resp:
-        content_length = resp.headers.get("Content-Length")
-        if content_length and content_length.isdigit() and int(content_length) > limit:
-            raise ValueError(f"plugin package is too large: {content_length} bytes")
-        chunks: list[bytes] = []
-        total = 0
-        while True:
-            block = resp.read(65536)
-            if not block:
-                break
-            total += len(block)
-            if total > limit:
-                raise ValueError(f"plugin package is too large: {total} bytes")
-            chunks.append(block)
+    try:
+        with urlopen(req, timeout=timeout_sec) as resp:
+            content_length = resp.headers.get("Content-Length")
+            if content_length and content_length.isdigit() and int(content_length) > limit:
+                raise PluginPackageNonFallbackError(f"plugin package is too large: {content_length} bytes")
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                block = resp.read(65536)
+                if not block:
+                    break
+                total += len(block)
+                if total > limit:
+                    raise PluginPackageNonFallbackError(f"plugin package is too large: {total} bytes")
+                chunks.append(block)
+    except PluginPackageError:
+        raise
+    except Exception as exc:
+        raise PluginPackageNetworkError(f"plugin package download failed: {exc}") from exc
     return b"".join(chunks)
 
 
 def _verify_package(body: bytes, *, expected_sha256: str, expected_size: int | None) -> None:
     if expected_size is not None and len(body) != expected_size:
-        raise ValueError(f"plugin package size mismatch: expected {expected_size}, got {len(body)}")
+        raise PluginPackageNonFallbackError(f"plugin package size mismatch: expected {expected_size}, got {len(body)}")
     if not expected_sha256:
-        raise ValueError("official plugin package is missing sha256")
+        raise PluginPackageNonFallbackError("official plugin package is missing sha256")
     actual = hashlib.sha256(body).hexdigest()
     if actual.lower() != expected_sha256.lower():
-        raise ValueError("plugin package checksum mismatch")
+        raise PluginPackageNonFallbackError("plugin package checksum mismatch")
 
 
 def _safe_members(zf: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, tuple[str, ...]]]:
     infos = [info for info in zf.infolist() if info.filename and not info.is_dir()]
     if not infos:
-        raise ValueError("plugin package is empty")
+        raise PluginPackageNonFallbackError("plugin package is empty")
 
     roots: set[str] = set()
     parsed: list[tuple[zipfile.ZipInfo, tuple[str, ...]]] = []
@@ -88,7 +105,7 @@ def _safe_members(zf: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, tuple[str,
         path = PurePosixPath(info.filename)
         parts = tuple(part for part in path.parts if part not in {"", "."})
         if not parts or path.is_absolute() or any(part == ".." for part in parts):
-            raise ValueError(f"unsafe plugin package path: {info.filename}")
+            raise PluginPackageNonFallbackError(f"unsafe plugin package path: {info.filename}")
         roots.add(parts[0])
         parsed.append((info, parts))
 
@@ -100,7 +117,7 @@ def _safe_members(zf: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, tuple[str,
             continue
         safe.append((info, rel))
     if not safe:
-        raise ValueError("plugin package has no files after root normalization")
+        raise PluginPackageNonFallbackError("plugin package has no files after root normalization")
     return safe
 
 
@@ -112,15 +129,18 @@ def _extract_safe_zip(body: bytes, target: Path) -> None:
             pass
         zip_path = tmp_root / "package.zip"
         zip_path.write_bytes(body)
-        with zipfile.ZipFile(zip_path) as zf:
-            members = _safe_members(zf)
-            for info, rel_parts in members:
-                destination = (tmp_root / "extract" / Path(*rel_parts)).resolve(strict=False)
-                if tmp_root.resolve(strict=False) not in destination.parents:
-                    raise ValueError(f"unsafe plugin package path: {info.filename}")
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(info) as src, destination.open("wb") as dst:
-                    shutil.copyfileobj(src, dst)
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                members = _safe_members(zf)
+                for info, rel_parts in members:
+                    destination = (tmp_root / "extract" / Path(*rel_parts)).resolve(strict=False)
+                    if tmp_root.resolve(strict=False) not in destination.parents:
+                        raise PluginPackageNonFallbackError(f"unsafe plugin package path: {info.filename}")
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(info) as src, destination.open("wb") as dst:
+                        shutil.copyfileobj(src, dst)
+        except zipfile.BadZipFile as exc:
+            raise PluginPackageNonFallbackError("plugin package is not a valid zip") from exc
 
         extracted = tmp_root / "extract"
         if target.exists():
@@ -139,12 +159,12 @@ def install_registry_package_under_plugins(
     """Download, verify, and extract an official registry package under ``plugins/``."""
     package_url = (record.package_url or record.download_url or "").strip()
     if not package_url:
-        raise ValueError("registry record has no package URL")
+        raise PluginPackageNonFallbackError("registry record has no package URL")
     _validate_package_url(package_url)
 
     folder_name = sanitize_plugins_directory_name(record.name or record.id or record.display_name)
     if not folder_name:
-        raise ValueError("registry record has no safe plugin folder name")
+        raise PluginPackageNonFallbackError("registry record has no safe plugin folder name")
 
     parent = Path(plugins_parent) if plugins_parent is not None else Path("plugins")
     target = parent / folder_name

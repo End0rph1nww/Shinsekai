@@ -221,6 +221,20 @@ def _with_install_metadata(result: dict[str, Any], metadata: dict[str, Any]) -> 
     return output
 
 
+def _is_non_fallback_package_error(exc: BaseException) -> bool:
+    try:
+        from core.plugins.package_download import PluginPackageNonFallbackError
+    except Exception:
+        return False
+
+    current: BaseException | None = exc
+    while current is not None:
+        if isinstance(current, PluginPackageNonFallbackError):
+            return True
+        current = current.__cause__
+    return False
+
+
 def _plugin_class_from_file(path: Path) -> str:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -294,7 +308,7 @@ def _install_registry_package_source(
     *,
     overwrite: bool = False,
 ) -> dict[str, Any]:
-    from core.plugins.package_download import install_registry_package_under_plugins
+    from core.plugins.package_download import PluginPackageNonFallbackError, install_registry_package_under_plugins
     from core.plugins.plugin_requirements_install import install_plugin_requirements_txt
     from core.plugins.registry_download import format_download_error, mark_repo_downloaded
 
@@ -334,6 +348,8 @@ def _install_registry_package_source(
             plugins_parent=Path("plugins"),
             overwrite=overwrite,
         )
+    except PluginPackageNonFallbackError as exc:
+        raise RuntimeError(format_download_error(exc)) from exc
     except Exception as exc:
         raise RuntimeError(format_download_error(exc)) from exc
     _append_task_log(state, task_id, "Package downloaded, verified, and extracted.")
@@ -531,6 +547,10 @@ def _install_plugin_source(
                     overwrite=overwrite,
                 )
             except Exception as exc:
+                if _is_non_fallback_package_error(exc):
+                    _append_task_log(state, task_id, f"Official package failed; GitHub fallback blocked: {exc}")
+                    _update_task(state, task_id, packageStatus="failed")
+                    raise
                 fallback_repo = _repo_slug_from_source(str(getattr(registry_rec, "repo", "") or ""))
                 if not fallback_repo:
                     raise
@@ -591,6 +611,10 @@ def _install_plugin_source(
                 overwrite=overwrite,
             )
         except Exception as exc:
+            if _is_non_fallback_package_error(exc):
+                _append_task_log(state, task_id, f"Official package failed; GitHub fallback blocked: {exc}")
+                _update_task(state, task_id, packageStatus="failed")
+                raise
             _append_task_log(state, task_id, f"Official package failed; falling back to GitHub: {exc}")
             _update_task(
                 state,

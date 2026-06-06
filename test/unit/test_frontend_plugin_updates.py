@@ -1,5 +1,8 @@
 from types import SimpleNamespace
 
+import pytest
+
+from core.plugins.package_download import PluginPackageNonFallbackError
 from core.plugins.registry_catalog import RegistryPluginRecord
 from frontend_bridge_core.state import BridgeState
 from frontend_bridge_core.plugin_updates import (
@@ -274,3 +277,43 @@ def test_install_plugin_source_falls_back_to_github_when_registry_package_fails(
     assert state.tasks["task"]["dependencyInstallStatus"] == "pip_ok"
     assert github_installs == [("owner/demo-plugin", "latest")]
     assert any("falling back to GitHub" in line for line in state.tasks["task"]["logs"])
+
+
+def test_install_plugin_source_blocks_github_fallback_when_registry_package_is_untrusted(tmp_path, monkeypatch):
+    record = RegistryPluginRecord(
+        id="demo-plugin",
+        name="demo-plugin",
+        display_name="Demo Plugin",
+        author="Tester",
+        repo="owner/demo-plugin",
+        description="Packaged plugin",
+        short_description="Packaged plugin",
+        entry="plugins.demo_plugin.plugin:DemoPlugin",
+        package_source="r2",
+        package_url="https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip",
+        package_sha256="abc123",
+    )
+    state = BridgeState(None, None, None, None)
+    state.tasks["task"] = {}
+    github_installs: list[str] = []
+
+    monkeypatch.setattr("frontend_bridge_core.plugin_updates._lookup_registry_plugin", lambda source: record)
+    monkeypatch.setattr(
+        "core.plugins.package_download.install_registry_package_under_plugins",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            PluginPackageNonFallbackError("plugin package checksum mismatch")
+        ),
+    )
+
+    def fake_install_github(repo_slug, **kwargs):
+        github_installs.append(repo_slug)
+        return tmp_path / "demo-plugin"
+
+    monkeypatch.setattr("core.plugins.github_bundle_update.install_github_plugin_under_plugins", fake_install_github)
+
+    with pytest.raises(RuntimeError, match="checksum mismatch"):
+        _install_plugin_source(state, "task", "demo-plugin")
+
+    assert github_installs == []
+    assert state.tasks["task"]["packageStatus"] == "failed"
+    assert any("GitHub fallback blocked" in line for line in state.tasks["task"]["logs"])
