@@ -1,10 +1,52 @@
-from core.plugins.registry_catalog import DEFAULT_REGISTRY_JSON_URL, parse_registry_plugins
+from urllib.error import URLError
+
+from core.plugins.registry_catalog import (
+    DEFAULT_REGISTRY_JSON_URL,
+    RAW_REGISTRY_JSON_URL,
+    fetch_registry_plugins,
+    parse_registry_plugins,
+)
 
 
-def test_default_registry_url_points_to_staging_generated_cache():
+def test_default_registry_url_points_to_staging_r2_generated_cache():
     assert DEFAULT_REGISTRY_JSON_URL == (
+        "https://pub-9e11c3d88dbc49699652c547dcf7efe7.r2.dev/registry/plugin_cache_original.json"
+    )
+    assert RAW_REGISTRY_JSON_URL == (
         "https://raw.githubusercontent.com/End0rph1nww/Shinsekai-Plugin-Registry/main/plugin_cache_original.json"
     )
+
+
+def test_fetch_registry_plugins_falls_back_from_r2_to_raw(monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, body):
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self):
+            return self.body
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        if len(calls) == 1:
+            raise URLError("r2 offline")
+        return FakeResponse(
+            b'{"demo": {"name": "demo", "repo": "owner/demo", "entry": "demo.plugin:DemoPlugin"}}'
+        )
+
+    monkeypatch.setattr("core.plugins.registry_catalog.urlopen", fake_urlopen)
+
+    records = fetch_registry_plugins(timeout_sec=1)
+
+    assert [record.name for record in records] == ["demo"]
+    assert calls == [DEFAULT_REGISTRY_JSON_URL, RAW_REGISTRY_JSON_URL]
 
 
 def test_parse_registry_plugins_accepts_market_object_payload():

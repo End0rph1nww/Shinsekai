@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -14,8 +15,12 @@ from urllib.request import Request, urlopen
 logger = logging.getLogger(__name__)
 
 DEFAULT_REGISTRY_JSON_URL = (
+    "https://pub-9e11c3d88dbc49699652c547dcf7efe7.r2.dev/registry/plugin_cache_original.json"
+)
+RAW_REGISTRY_JSON_URL = (
     "https://raw.githubusercontent.com/End0rph1nww/Shinsekai-Plugin-Registry/main/plugin_cache_original.json"
 )
+REGISTRY_URL_ENV = "SHINSEKAI_PLUGIN_REGISTRY_URL"
 
 _REGISTRY_USER_AGENT = (
     "EasyAIDesktopAssistant/1.0 (+https://github.com/End0rph1nww/Shinsekai-Plugin-Registry)"
@@ -210,24 +215,36 @@ def fetch_registry_plugins(
     :raises urllib.error.HTTPError: HTTP failure
     :raises urllib.error.URLError: network / TLS failure
     """
-    target = (url or DEFAULT_REGISTRY_JSON_URL).strip()
-    if not target:
+    explicit_url = url or os.environ.get(REGISTRY_URL_ENV)
+    primary = (explicit_url or DEFAULT_REGISTRY_JSON_URL).strip()
+    if not primary:
         raise ValueError("empty registry URL")
+    targets = [primary] if explicit_url else [primary, RAW_REGISTRY_JSON_URL]
+    last_error: BaseException | None = None
 
-    req = Request(target, headers={"User-Agent": _REGISTRY_USER_AGENT})
-    with urlopen(req, timeout=timeout_sec) as resp:
-        body = resp.read().decode("utf-8")
+    for target in targets:
+        try:
+            req = Request(target, headers={"User-Agent": _REGISTRY_USER_AGENT})
+            with urlopen(req, timeout=timeout_sec) as resp:
+                body = resp.read().decode("utf-8")
 
-    try:
-        raw = json.loads(body)
-    except json.JSONDecodeError:
-        raw = json.loads(_relax_json_trailing_commas(body))
+            try:
+                raw = json.loads(body)
+            except json.JSONDecodeError:
+                raw = json.loads(_relax_json_trailing_commas(body))
 
-    try:
-        return parse_registry_plugins(raw)
-    except ValueError:
-        logger.exception("invalid registry payload from %s", target)
-        raise
+            return parse_registry_plugins(raw)
+        except (HTTPError, URLError, json.JSONDecodeError, ValueError) as exc:
+            last_error = exc
+            if target == targets[-1]:
+                if isinstance(exc, ValueError):
+                    logger.exception("invalid registry payload from %s", target)
+                raise
+            logger.warning("registry fetch failed from %s, trying fallback: %s", target, fetch_registry_error_message(exc))
+
+    if last_error is not None:
+        raise last_error
+    raise ValueError("empty registry URL")
 
 
 def fetch_registry_error_message(exc: BaseException) -> str:

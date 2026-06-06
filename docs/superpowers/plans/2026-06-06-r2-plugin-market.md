@@ -479,8 +479,12 @@ aws s3 cp "$ZIP_PATH" "s3://${R2_BUCKET}/${R2_KEY}" \
 
 - [ ] Write generated metadata into `plugin_cache_original.json`.
 - [ ] Write `plugins-md5.json` as `{ "md5": "<md5 of plugin_cache_original.json>" }`.
+- [x] Mirror generated registry files to R2 so clients can avoid GitHub Raw cache lag:
+  - `registry/plugin_cache_original.json`
+  - `registry/plugins-md5.json`
 - [ ] Commit generated files back to `main` with bot identity.
 - [ ] Run workflow once with `dry_run=true` against one test plugin before enabling automatic upload.
+- [x] Staging workflow dry run and real upload passed for `moondream_vision` and `cloud_tts` on `End0rph1nww/Shinsekai-Plugin-Registry`.
 - [ ] Run:
 
 ```powershell
@@ -677,6 +681,7 @@ Manual checks:
 - Registry PR validation rejects malformed entries.
 - Publishing workflow creates an R2 URL with the expected key format.
 - Generated registry includes `download_url`, `sha256`, `size`, `commit_sha`, `package`, and `plugins-md5.json`.
+- Generated registry and md5 are mirrored to R2 under `registry/` and used as the primary client/market index.
 - Market displays generated package metadata.
 - Shinsekai client installs from R2, verifies checksum, and logs package/dependency states.
 - Checksum mismatch blocks install and does not fall back to GitHub.
