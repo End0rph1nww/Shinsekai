@@ -1,4 +1,10 @@
-from core.plugins.registry_catalog import parse_registry_plugins
+from core.plugins.registry_catalog import DEFAULT_REGISTRY_JSON_URL, parse_registry_plugins
+
+
+def test_default_registry_url_points_to_staging_generated_cache():
+    assert DEFAULT_REGISTRY_JSON_URL == (
+        "https://raw.githubusercontent.com/End0rph1nww/Shinsekai-Plugin-Registry/main/plugin_cache_original.json"
+    )
 
 
 def test_parse_registry_plugins_accepts_market_object_payload():

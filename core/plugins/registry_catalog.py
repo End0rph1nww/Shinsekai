@@ -1,4 +1,4 @@
-"""Remote plugin registry (plugins.json) for the plugin discovery UI."""
+"""Remote plugin registry for the plugin discovery UI."""
 
 from __future__ import annotations
 
@@ -14,11 +14,11 @@ from urllib.request import Request, urlopen
 logger = logging.getLogger(__name__)
 
 DEFAULT_REGISTRY_JSON_URL = (
-    "https://raw.githubusercontent.com/RachelForster/Shinsekai-Plugin-Registry/main/plugins.json"
+    "https://raw.githubusercontent.com/End0rph1nww/Shinsekai-Plugin-Registry/main/plugin_cache_original.json"
 )
 
 _REGISTRY_USER_AGENT = (
-    "EasyAIDesktopAssistant/1.0 (+https://github.com/RachelForster/Shinsekai-Plugin-Registry)"
+    "EasyAIDesktopAssistant/1.0 (+https://github.com/End0rph1nww/Shinsekai-Plugin-Registry)"
 )
 
 
