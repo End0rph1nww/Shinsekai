@@ -120,7 +120,7 @@ const PREVIEW_PLUGIN_SUBMIT_URL =
   "https://github.com/RachelForster/Shinsekai-Plugin-Registry/issues/new?template=PLUGIN_PUBLISH.yml";
 
 function normalizePreviewPluginSubmission(input: PluginSubmissionInput): PluginSubmissionInput {
-  return {
+  const submission: PluginSubmissionInput = {
     author: input.author.trim(),
     desc: input.desc.trim(),
     display_name: input.display_name.trim(),
@@ -131,6 +131,11 @@ function normalizePreviewPluginSubmission(input: PluginSubmissionInput): PluginS
       .filter(Boolean)
       .slice(0, 5),
   };
+  const shinsekaiVersion = (input.shinsekai_version ?? "").trim();
+  if (shinsekaiVersion) {
+    submission.shinsekai_version = shinsekaiVersion;
+  }
+  return submission;
 }
 
 function previewPluginSubmissionErrors(input: PluginSubmissionInput) {
