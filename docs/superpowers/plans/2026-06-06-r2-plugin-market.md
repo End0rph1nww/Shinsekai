@@ -516,18 +516,18 @@ python scripts\registry\update_generated_registry.py --dry-run --plugin-name shi
 
 **Steps:**
 
-- [ ] Replace the placeholder submit guide with a 3-step wizard: fill form, preview JSON, open GitHub Issue.
-- [ ] Form fields: `display_name`, `desc`, `author`, `repo`, `entry`, `tags`, `social_link`.
-- [ ] Validate GitHub URL with the same rule as the registry script.
-- [ ] Limit `desc` to 200 Unicode characters and tags to 5.
-- [ ] Generate JSON matching the registry Issue template.
-- [ ] Use `VITE_SUBMIT_URL` for the Issue URL. Staging can point to `https://github.com/End0rph1nww/Shinsekai-Plugin-Registry/issues/new?template=PLUGIN_PUBLISH.yml`; production should point to the upstream registry after PR acceptance.
-- [ ] Do not hard-code the fork owner into production builds.
-- [ ] Keep `VITE_SUBMIT_URL` override support.
-- [ ] Normalize generated package fields: `download_url`, `sha256`, `size`, `commit_sha`, `package.url`, `package.sha256`, `package.size`, `package.r2_key`, and `sec_scan`.
-- [ ] Show package source, version, size, compact SHA, and scan state in details.
-- [ ] Keep the existing drawer interaction and Shinsekai pink visual language.
-- [ ] Run:
+- [x] Replace the placeholder submit guide with a 3-step wizard: fill form, preview JSON, open GitHub Issue.
+- [x] Form fields: `display_name`, `desc`, `author`, `repo`, `entry`, `tags`, `social_link`.
+- [x] Validate GitHub URL with the same rule as the registry script.
+- [x] Limit `desc` to 200 Unicode characters and tags to 5.
+- [x] Generate JSON matching the registry Issue template.
+- [x] Use `VITE_SUBMIT_URL` for the Issue URL. Staging can point to `https://github.com/End0rph1nww/Shinsekai-Plugin-Registry/issues/new?template=PLUGIN_PUBLISH.yml`; production should point to the upstream registry after PR acceptance.
+- [x] Do not hard-code the fork owner into production builds.
+- [x] Keep `VITE_SUBMIT_URL` override support.
+- [x] Normalize generated package fields: `download_url`, `sha256`, `size`, `commit_sha`, `package.url`, `package.sha256`, `package.size`, `package.r2_key`, and `sec_scan`.
+- [x] Show package source, version, size, compact SHA, and scan state in details.
+- [x] Keep the existing drawer interaction and Shinsekai pink visual language.
+- [x] Run:
 
 ```powershell
 cd D:\Workspace\Assistant\Shinsekai-Plugin-Market
