@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import ast
 import configparser
+import json
 import re
 from pathlib import Path
 from typing import Any
 
 
+METADATA_NAMES = ("plugin.json", "shinsekai.plugin.json")
 README_NAMES = ("README.md", "README.MD", "readme.md", "README.txt")
 LOGO_PATTERNS = ("logo.png", "logo.jpg", "logo.jpeg", "icon.png", "icon.jpg", "icon.jpeg")
 
@@ -20,6 +22,8 @@ def scan_local_plugin(path: str | Path) -> dict[str, Any]:
         raise ValueError("plugin path must be a directory")
 
     readme = find_first(root, README_NAMES)
+    metadata_path = find_first(root, METADATA_NAMES)
+    metadata = read_plugin_metadata(metadata_path, warnings) if metadata_path else {}
     package_dir = infer_package_dir(root)
     entry = infer_entry(root, package_dir)
     repo = read_git_remote(root)
@@ -32,22 +36,31 @@ def scan_local_plugin(path: str | Path) -> dict[str, Any]:
     if not repo:
         warnings.append("Could not infer GitHub repository from git remote.")
 
-    display_name = title or root.name.replace("_", " ").replace("-", " ").strip().title()
-    logo = find_logo(root)
+    display_name = (
+        metadata_string(metadata, "display_name")
+        or metadata_string(metadata, "name")
+        or title
+        or root.name.replace("_", " ").replace("-", " ").strip().title()
+    )
+    metadata_repo = metadata_string(metadata, "repo")
+    repo = metadata_repo or repo
+    metadata_logo = metadata_string(metadata, "logo")
+    logo = resolve_metadata_logo(root, metadata_logo) if metadata_logo else find_logo(root)
     requirements = root / "requirements.txt"
 
     return {
-        "author": infer_author_from_repo(repo),
-        "desc": desc,
+        "author": metadata_string(metadata, "author") or infer_author_from_repo(repo),
+        "desc": metadata_string(metadata, "desc") or metadata_string(metadata, "description") or desc,
         "display_name": display_name,
-        "entry": entry,
+        "entry": metadata_string(metadata, "entry") or entry,
         "logo": logo.as_posix() if logo else "",
         "package_dir": package_dir.as_posix() if package_dir else "",
         "path": root.as_posix(),
         "repo": repo,
         "requirements": requirements.as_posix() if requirements.exists() else "",
-        "social_link": infer_social_link(repo),
-        "tags": [],
+        "shinsekai_version": metadata_string(metadata, "shinsekai_version"),
+        "social_link": metadata_string(metadata, "social_link") or infer_social_link(repo),
+        "tags": metadata_list(metadata, "tags"),
         "warnings": warnings,
     }
 
@@ -58,6 +71,44 @@ def find_first(root: Path, names: tuple[str, ...]) -> Path | None:
         if candidate.exists() and candidate.is_file():
             return candidate
     return None
+
+
+def read_plugin_metadata(path: Path, warnings: list[str]) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        warnings.append(f"Could not parse {path.name}: {exc.msg}.")
+        return {}
+    if not isinstance(payload, dict):
+        warnings.append(f"{path.name} must contain a JSON object.")
+        return {}
+    return payload
+
+
+def metadata_string(metadata: dict[str, Any], field: str) -> str:
+    value = metadata.get(field)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def metadata_list(metadata: dict[str, Any], field: str) -> list[str]:
+    value = metadata.get(field)
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        return [part.strip() for part in re.split(r"[,，、\s]+", value) if part.strip()]
+    if isinstance(value, list):
+        return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    return []
+
+
+def resolve_metadata_logo(root: Path, value: str) -> Path | None:
+    raw = value.strip()
+    if not raw:
+        return None
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    return candidate.resolve() if candidate.exists() and candidate.is_file() else None
 
 
 def find_logo(root: Path) -> Path | None:

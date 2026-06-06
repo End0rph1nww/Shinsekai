@@ -124,8 +124,9 @@ function normalizePreviewPluginSubmission(input: PluginSubmissionInput): PluginS
     author: input.author.trim(),
     desc: input.desc.trim(),
     display_name: input.display_name.trim(),
-    entry: input.entry.trim(),
+    entry: (input.entry ?? "").trim() || undefined,
     repo: input.repo.trim().replace(/\.git$/i, ""),
+    shinsekai_version: (input.shinsekai_version ?? "").trim(),
     social_link: (input.social_link ?? "").trim(),
     tags: (input.tags ?? [])
       .map((tag) => tag.trim())
@@ -137,7 +138,7 @@ function normalizePreviewPluginSubmission(input: PluginSubmissionInput): PluginS
 function previewPluginSubmissionErrors(input: PluginSubmissionInput) {
   const submission = normalizePreviewPluginSubmission(input);
   const errors: string[] = [];
-  for (const field of ["display_name", "desc", "author", "repo", "entry"] as const) {
+  for (const field of ["display_name", "desc", "author", "repo"] as const) {
     if (!submission[field]) {
       errors.push(`${field} is required`);
     }
@@ -914,16 +915,17 @@ export function createBrowserPreviewPlatform(): ShinsekaiPlatform {
         const baseName = input.path.split(/[\\/]/).filter(Boolean).pop() || "preview-plugin";
         return delay({
           author: "Shinsekai Contributors",
-          desc: "Example submission generated from a local plugin folder.",
+          desc: "从本地插件目录生成的示例提交信息。",
           display_name: baseName.replace(/[-_]+/g, " "),
           entry: `plugins.${baseName.replace(/[^A-Za-z0-9_]/g, "_")}.plugin:PreviewPlugin`,
-          logo: "",
+          logo: "logo.png",
           path: input.path,
           repo: `https://github.com/shinsekai/${baseName}`,
           requirements: "",
+          shinsekai_version: ">=0.2.0",
           social_link: "https://github.com/shinsekai",
           tags: ["preview"],
-          warnings: ["Browser preview uses sample metadata and does not read local files."],
+          warnings: ["浏览器预览使用示例元数据，不会读取真实本地文件。"],
         });
       },
       validateSubmission(input) {

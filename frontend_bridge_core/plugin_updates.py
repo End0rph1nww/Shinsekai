@@ -340,11 +340,11 @@ def _install_registry_package_source(
         entry = _infer_plugin_entry(plugin_root)
 
     _update_task(state, task_id, message="Registering plugin install state.", phase="manifest", progress=0.9)
-    mark_repo_downloaded(repo, manifest_entry=entry or None)
     metadata["dependencyDetail"] = pip_detail
     metadata["dependencyStatus"] = pip_code
     metadata["entry"] = entry
     metadata["packageStatus"] = "installed"
+    mark_repo_downloaded(repo, manifest_entry=entry or None, install_metadata=metadata)
     if entry:
         return _with_install_metadata(_plugin_result_from_manifest(entry), metadata)
 
@@ -455,7 +455,6 @@ def _install_github_plugin_source(
         entry = _infer_plugin_entry(plugin_root)
 
     _update_task(state, task_id, message="Registering plugin install state.", phase="manifest", progress=0.9)
-    mark_repo_downloaded(repo_slug, manifest_entry=entry or None)
     metadata = {
         "dependencyDetail": pip_detail,
         "dependencyStatus": pip_code,
@@ -466,6 +465,7 @@ def _install_github_plugin_source(
         "sourceType": "github-source",
         "tagName": tag_name if ref_kind == "tag" else "",
     }
+    mark_repo_downloaded(repo_slug, manifest_entry=entry or None, install_metadata=metadata)
     if entry:
         return _with_install_metadata(_plugin_result_from_manifest(entry), metadata)
 

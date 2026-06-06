@@ -199,7 +199,6 @@ export interface PluginCatalogItem {
   socialLink?: string;
   sourceUrl?: string;
   stars?: number;
-  supportPlatforms?: string[];
   tags?: string[];
   trustLevel?: string;
   updatedAt?: string;
@@ -235,8 +234,9 @@ export interface PluginSubmissionInput {
   author: string;
   desc: string;
   display_name: string;
-  entry: string;
+  entry?: string;
   repo: string;
+  shinsekai_version?: string;
   social_link?: string;
   tags: string[];
 }

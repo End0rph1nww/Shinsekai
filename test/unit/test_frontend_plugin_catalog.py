@@ -101,6 +101,7 @@ def test_plugin_registry_rows_expose_market_metadata(monkeypatch):
             "packageUrl": "https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip",
             "readmeUrl": "https://raw.githubusercontent.com/owner/demo/main/README.md",
             "repo": "owner/demo",
+            "review": None,
             "securityScan": {"llm_agent": {"pass": True}},
             "sha256": "abc123",
             "shinsekaiVersion": ">=2.0.0",
@@ -111,7 +112,9 @@ def test_plugin_registry_rows_expose_market_metadata(monkeypatch):
             "stars": 12,
             "supportPlatforms": ["desktop"],
             "tags": ["utility", "ai"],
+            "trustLevel": "community",
             "updatedAt": "2026-06-06T00:00:00Z",
+            "verified": False,
             "version": "v0.1.0",
         }
     ]

@@ -13,6 +13,28 @@ from frontend_bridge_core.plugin_updates import (
 )
 
 
+def test_registry_download_state_persists_package_install_metadata(tmp_path, monkeypatch):
+    from core.plugins import registry_download
+
+    monkeypatch.setattr(registry_download, "_DOWNLOAD_STATE_PATH", tmp_path / "downloads.json")
+
+    registry_download.mark_repo_downloaded(
+        "owner/demo",
+        manifest_entry="demo.plugin:DemoPlugin",
+        install_metadata={
+            "packageSha256": "abc123",
+            "packageUrl": "https://cdn.example.com/demo.zip",
+            "sourceType": "official-package",
+        },
+    )
+
+    assert registry_download.load_plugin_install_metadata("plugins.demo.plugin:DemoPlugin") == {
+        "packageSha256": "abc123",
+        "packageUrl": "https://cdn.example.com/demo.zip",
+        "sourceType": "official-package",
+    }
+
+
 def test_repo_slug_from_source_accepts_common_github_forms():
     assert _repo_slug_from_source("owner/repo") == "owner/repo"
     assert _repo_slug_from_source("https://github.com/owner/repo.git") == "owner/repo"
@@ -138,7 +160,7 @@ def test_install_plugin_source_prefers_registry_package_for_catalog_id(tmp_path,
     state = BridgeState(None, None, None, None)
     state.tasks["task"] = {}
     installed: list[tuple[RegistryPluginRecord, bool]] = []
-    marked: list[tuple[str, str | None]] = []
+    marked: list[tuple[str, str | None, dict[str, object] | None]] = []
 
     monkeypatch.setattr("frontend_bridge_core.plugin_updates._lookup_registry_plugin", lambda source: record)
     monkeypatch.setattr(
@@ -151,7 +173,7 @@ def test_install_plugin_source_prefers_registry_package_for_catalog_id(tmp_path,
     )
     monkeypatch.setattr(
         "core.plugins.registry_download.mark_repo_downloaded",
-        lambda repo, manifest_entry=None: marked.append((repo, manifest_entry)),
+        lambda repo, manifest_entry=None, install_metadata=None: marked.append((repo, manifest_entry, install_metadata)),
     )
     monkeypatch.setattr(
         "frontend_bridge_core.plugin_updates._plugin_result_from_manifest",
@@ -180,7 +202,25 @@ def test_install_plugin_source_prefers_registry_package_for_catalog_id(tmp_path,
     assert state.tasks["task"]["dependencyInstallStatus"] == "ok"
     assert "Source: Official package (R2)" in state.tasks["task"]["logs"]
     assert installed == [(record, False)]
-    assert marked == [("owner/demo-plugin", "plugins.demo_plugin.plugin:DemoPlugin")]
+    assert marked == [
+        (
+            "owner/demo-plugin",
+            "plugins.demo_plugin.plugin:DemoPlugin",
+            {
+                "dependencyDetail": "",
+                "dependencyStatus": "ok",
+                "entry": "plugins.demo_plugin.plugin:DemoPlugin",
+                "packageSha256": "abc123",
+                "packageSize": 128,
+                "packageSource": "r2",
+                "packageStatus": "installed",
+                "packageUrl": "https://plugins-cdn.shinsekai.end0rph1n.icu/plugins/demo.zip",
+                "repo": "owner/demo-plugin",
+                "sourceLabel": "Official package (R2)",
+                "sourceType": "official-package",
+            },
+        )
+    ]
 
 
 def test_install_plugin_source_falls_back_to_github_when_registry_package_fails(tmp_path, monkeypatch):

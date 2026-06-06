@@ -25,6 +25,7 @@ interface PublisherFormState {
   displayName: string;
   entry: string;
   repo: string;
+  shinsekaiVersion: string;
   socialLink: string;
   tags: string;
 }
@@ -35,6 +36,7 @@ const emptyForm: PublisherFormState = {
   displayName: "",
   entry: "",
   repo: "",
+  shinsekaiVersion: "",
   socialLink: "",
   tags: "",
 };
@@ -51,8 +53,9 @@ function buildSubmission(form: PublisherFormState): PluginSubmissionInput {
     author: form.author.trim(),
     desc: form.desc.trim(),
     display_name: form.displayName.trim(),
-    entry: form.entry.trim(),
+    entry: form.entry.trim() || undefined,
     repo: form.repo.trim(),
+    shinsekai_version: form.shinsekaiVersion.trim() || undefined,
     social_link: form.socialLink.trim(),
     tags: splitTags(form.tags),
   };
@@ -78,10 +81,10 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
   const localErrors = useMemo(() => {
     const errors: string[] = [];
     if (form.desc.trim().length > MAX_DESC_CHARS) {
-      errors.push("desc must be 200 characters or less");
+      errors.push("简介最多 200 字符。");
     }
     if (tagCount > 5) {
-      errors.push("tags must contain 5 items or fewer");
+      errors.push("标签最多 5 个。");
     }
     return errors;
   }, [form.desc, tagCount]);
@@ -95,7 +98,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
 
   const handleScan = async () => {
     if (!localPath.trim()) {
-      setServerErrors(["plugin path is required"]);
+      setServerErrors(["请选择插件源码目录。"]);
       return;
     }
     setBusyAction("scan");
@@ -110,12 +113,13 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
         displayName: result.display_name || current.displayName,
         entry: result.entry || current.entry,
         repo: result.repo || current.repo,
+        shinsekaiVersion: result.shinsekai_version || current.shinsekaiVersion,
         socialLink: result.social_link || current.socialLink,
         tags: result.tags?.length ? result.tags.join(", ") : current.tags,
       }));
       showToast({ kind: "success", title: t("plugin.publisher.scanDone") });
     } catch (error) {
-      setServerErrors([error instanceof Error ? error.message : "scan failed"]);
+      setServerErrors([error instanceof Error ? error.message : "读取元数据失败。"]);
       showToast({
         kind: "error",
         message: error instanceof Error ? error.message : "",
@@ -139,7 +143,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
       }
       return result.ok;
     } catch (error) {
-      setServerErrors([error instanceof Error ? error.message : "validation failed"]);
+      setServerErrors([error instanceof Error ? error.message : "校验失败。"]);
       return false;
     } finally {
       setBusyAction(null);
@@ -154,7 +158,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
       setPayloadPreview(result.json);
       showToast({ kind: "success", title: t("plugin.publisher.copied") });
     } catch (error) {
-      setServerErrors([error instanceof Error ? error.message : "copy failed"]);
+      setServerErrors([error instanceof Error ? error.message : "复制失败。"]);
       showToast({
         kind: "error",
         message: error instanceof Error ? error.message : "",
@@ -174,7 +178,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
       await openExternal(result.issueUrl);
       showToast({ kind: "success", title: t("plugin.publisher.opened") });
     } catch (error) {
-      setServerErrors([error instanceof Error ? error.message : "issue url failed"]);
+      setServerErrors([error instanceof Error ? error.message : "生成 Issue 链接失败。"]);
       showToast({
         kind: "error",
         message: error instanceof Error ? error.message : "",
@@ -242,7 +246,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
           />
         </label>
         <AsyncButton
-          aria-label="Scan folder"
+          aria-label="扫描目录"
           icon={<ScanLine aria-hidden className="button__icon" />}
           loading={busyAction === "scan"}
           onClick={() => void handleScan()}
@@ -281,13 +285,19 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
               value={form.repo}
             />
           </label>
-          <label className="form-field plugin-publisher-form__wide">
-            <span>{t("plugin.publisher.entry")}</span>
+          {form.entry ? (
+            <label className="form-field plugin-publisher-form__wide">
+              <span>{t("plugin.publisher.entryAuto")}</span>
+              <TextInput autoComplete="off" readOnly value={form.entry} />
+            </label>
+          ) : null}
+          <label className="form-field">
+            <span>{t("plugin.publisher.shinsekaiVersion")}</span>
             <TextInput
               autoComplete="off"
-              onChange={(event) => updateForm("entry", event.target.value)}
-              placeholder="plugins.shinsekai_plugin.plugin:ShinsekaiPlugin"
-              value={form.entry}
+              onChange={(event) => updateForm("shinsekaiVersion", event.target.value)}
+              placeholder=">=0.2.0"
+              value={form.shinsekaiVersion}
             />
           </label>
           <label className="form-field plugin-publisher-form__wide">
@@ -317,7 +327,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("socialLink", event.target.value)}
-              placeholder="https://github.com/shinsekai"
+              placeholder="你的 B 站、GitHub 主页或个人网站"
               value={form.socialLink}
             />
           </label>
@@ -326,7 +336,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
         <aside className="plugin-publisher-preview" aria-label={t("plugin.publisher.preview")}>
           <div className="plugin-publisher-preview__header">
             <strong>{t("plugin.publisher.preview")}</strong>
-            <span>{tagCount} tags</span>
+            <span>{tagCount} 个标签</span>
           </div>
           <pre>{previewJson}</pre>
           {[...localErrors, ...serverErrors].length ? (

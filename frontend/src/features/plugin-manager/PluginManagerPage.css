@@ -89,6 +89,40 @@
   border-color: var(--color-border-hover);
 }
 
+.plugin-card__header {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.plugin-card__logo {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--color-accent-border);
+  border-radius: 12px;
+  background: var(--color-accent-bg);
+  color: var(--color-accent-primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.plugin-card__logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.plugin-card__identity {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
 .plugin-card__title-row {
   display: flex;
   min-width: 0;
@@ -111,6 +145,42 @@
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.plugin-card__badges {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.plugin-card__badge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.plugin-card__badge--update {
+  border-color: var(--color-warning-border);
+  background: rgba(237 168 64 / 0.14);
+  color: var(--color-warning);
+}
+
+.plugin-card__badge--support {
+  border-color: var(--color-accent-border);
+  background: var(--color-accent-bg);
+  color: var(--color-accent-primary);
 }
 
 .plugin-card__status {
@@ -155,6 +225,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.plugin-inline-link {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-info);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.plugin-inline-link:hover {
+  color: var(--color-accent-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .plugin-card__actions {
@@ -447,6 +537,14 @@
   white-space: nowrap;
 }
 
+.plugin-market-card__version-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .plugin-market-card__description {
   display: -webkit-box;
   min-height: 38px;
@@ -539,9 +637,9 @@
 }
 
 .plugin-market-badge--trust-community {
-  border-color: var(--color-accent-border);
-  background: rgba(255 125 178 / 0.1);
-  color: var(--color-accent-primary);
+  border-color: var(--color-info-border);
+  background: var(--color-info-bg);
+  color: var(--color-info);
 }
 
 .plugin-market-badge--trust-pending {
@@ -567,32 +665,65 @@
   color: var(--color-text-subtle);
 }
 
+.plugin-market-install-dialog {
+  display: flex;
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(680px, calc(100vh - 24px));
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.plugin-market-install-dialog .dialog__header,
+.plugin-market-install-dialog .dialog__footer {
+  flex: 0 0 auto;
+}
+
+.plugin-market-install-dialog .dialog__footer {
+  flex-wrap: wrap;
+}
+
+.plugin-market-install-dialog__body {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .plugin-market-install-summary {
   display: grid;
+  width: 100%;
+  min-width: 0;
   gap: var(--space-3);
-  min-width: min(520px, 72vw);
+}
+
+.plugin-market-install-summary .plugin-market-card__title-row {
+  flex-wrap: wrap;
+}
+
+.plugin-market-install-summary .plugin-card__description {
+  overflow-wrap: anywhere;
 }
 
 .plugin-market-install-warning {
   display: grid;
   gap: 4px;
   padding: 10px 12px;
-  border: 1px solid var(--color-accent-border);
+  border: 1px solid var(--color-info-border);
   border-radius: 10px;
-  background: rgba(255 125 178 / 0.09);
+  background: var(--color-info-bg);
   color: var(--color-text);
   font-size: 12px;
   line-height: 1.45;
 }
 
 .plugin-market-install-warning strong {
-  color: var(--color-accent-primary);
+  color: var(--color-info);
   font-size: 12px;
   font-weight: 700;
 }
 
 .plugin-market-install-warning span {
   color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .plugin-market-install-warning[data-kind="pending"] {

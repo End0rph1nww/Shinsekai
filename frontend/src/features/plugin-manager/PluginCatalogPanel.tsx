@@ -7,9 +7,9 @@ import {
   DownloadCloud,
   ExternalLink,
   GitBranch,
+  Globe2,
   PackageCheck,
   RefreshCw,
-  ShieldAlert,
   ShieldCheck,
   Star,
   Tag,
@@ -63,8 +63,8 @@ interface PluginCatalogPanelProps {
   appUpdateTask: TaskSnapshot<AppUpdateResult> | null;
   catalogQuery: ReturnType<typeof useQuery<PluginCatalogItem[]>>;
   installMutation: ReturnType<typeof useMutation<PluginManifest, Error, string | PluginInstallInput>>;
-  installTask: TaskSnapshot<PluginManifest> | null;
   installingSource: string;
+  onOpenCatalogInstall: (plugin: PluginCatalogItem) => void;
 }
 
 type DesktopUpdateDialogStatus =
@@ -83,7 +83,8 @@ type PluginTrustState = "verified" | "community" | "pending" | "blocked";
 const CATALOG_PAGE_SIZE = 10;
 
 function catalogDisplayName(plugin: PluginCatalogItem) {
-  return plugin.displayName || plugin.name || plugin.repo || plugin.entry;
+  const raw = plugin as PluginCatalogItem & { display_name?: string; title?: string };
+  return plugin.displayName || raw.display_name || raw.title || plugin.name || plugin.repo || plugin.entry;
 }
 
 function catalogDescription(plugin: PluginCatalogItem) {
@@ -92,6 +93,10 @@ function catalogDescription(plugin: PluginCatalogItem) {
 
 function catalogTags(plugin: PluginCatalogItem) {
   return plugin.tags ?? [];
+}
+
+function catalogAuthorLink(plugin: PluginCatalogItem) {
+  return plugin.socialLink?.trim() || "";
 }
 
 function hasOfficialPackage(plugin: PluginCatalogItem | null | undefined) {
@@ -148,23 +153,23 @@ function catalogTrustNotice(plugin: PluginCatalogItem | null | undefined) {
   const state = pluginTrustState(plugin);
   if (state === "community") {
     return {
-      body: "CI / 查毒通过不等于人工验证。插件可能读取本地配置、访问网络、安装依赖；安装前请确认作者和仓库可信。",
+      body: "该插件尚未经过人工复核，我们不能完全保证插件的稳定性和安全性。使用前请谨慎核查作者、仓库和权限来源。",
       kind: "community",
-      title: "Community plugin",
+      title: "Community 插件",
     };
   }
   if (state === "pending") {
     return {
-      body: "这个插件曾经通过验证，但当前版本或 commit 还在等待复审。建议确认更新来源后再继续安装。",
+      body: "该插件曾通过人工复核，但当前版本或提交仍在等待复核。建议确认更新内容与来源后再安装。",
       kind: "pending",
-      title: "Pending review",
+      title: "待复核版本",
     };
   }
   if (state === "blocked") {
     return {
-      body: "Registry 已将这个插件标记为 Blocked。除非你完全确认风险来源，否则不要安装。",
+      body: "该插件已从索引下架或被标记为不建议安装。请刷新索引，或联系维护者确认后再处理。",
       kind: "blocked",
-      title: "Blocked",
+      title: "已下架",
     };
   }
   return null;
@@ -184,27 +189,212 @@ function CatalogTrustBadge({ plugin }: { plugin: PluginCatalogItem }) {
       </span>
     );
   }
-  if (state === "pending") {
-    return (
-      <span className="plugin-market-badge plugin-market-badge--trust-pending">
-        <Clock3 aria-hidden size={13} />
-        Pending Review
-      </span>
-    );
-  }
-  if (state === "blocked") {
-    return (
-      <span className="plugin-market-badge plugin-market-badge--trust-blocked">
-        <ShieldAlert aria-hidden size={13} />
-        Blocked
-      </span>
-    );
-  }
   return (
     <span className="plugin-market-badge plugin-market-badge--trust-community">
-      <UserRound aria-hidden size={13} />
+      <Globe2 aria-hidden size={13} />
       Community
     </span>
+  );
+}
+
+interface PluginCatalogInstallDialogProps {
+  installMutation: ReturnType<typeof useMutation<PluginManifest, Error, string | PluginInstallInput>>;
+  installTask: TaskSnapshot<PluginManifest> | null;
+  onClose: () => void;
+  plugin: PluginCatalogItem | null;
+}
+
+export function PluginCatalogInstallDialog({
+  installMutation,
+  installTask,
+  onClose,
+  plugin,
+}: PluginCatalogInstallDialogProps) {
+  const { showToast } = useToast();
+  const { t } = useI18n();
+  const [catalogRefKind, setCatalogRefKind] = useState<AppUpdateRefKind>("latest");
+  const [catalogTagName, setCatalogTagName] = useState("");
+  const pluginKey = plugin ? catalogKey(plugin) : "";
+  const officialPackage = hasOfficialPackage(plugin);
+  const installDone = Boolean(plugin) && installMutation.isSuccess && !installMutation.isPending;
+  const installNotice = catalogTrustNotice(plugin);
+  const installAsUpdate = Boolean(plugin?.downloaded || plugin?.installed);
+  const catalogTagsQuery = useQuery({
+    enabled: Boolean(plugin?.repo) && !officialPackage,
+    queryFn: () => listRepoTags(plugin?.repo ?? ""),
+    queryKey: ["plugins", "catalog", "tags", plugin?.repo ?? ""],
+    retry: 1,
+  });
+
+  useEffect(() => {
+    setCatalogRefKind("latest");
+    setCatalogTagName("");
+  }, [pluginKey]);
+
+  useEffect(() => {
+    if (!catalogTagName && catalogTagsQuery.data?.[0]) {
+      setCatalogTagName(catalogTagsQuery.data[0]);
+    }
+  }, [catalogTagName, catalogTagsQuery.data]);
+
+  const closeDialog = () => {
+    if (installMutation.isPending) {
+      return;
+    }
+    onClose();
+  };
+
+  const startInstall = () => {
+    const source = plugin ? catalogInstallSource(plugin) : "";
+    if (!plugin || !source) {
+      return;
+    }
+    if (!officialPackage && catalogRefKind === "tag" && !catalogTagName.trim()) {
+      showToast({
+        kind: "error",
+        message: t("plugin.appUpdate.tagInvalid"),
+        title: t("plugin.installRef.title"),
+      });
+      return;
+    }
+    installMutation.mutate({
+      overwrite: installAsUpdate,
+      refKind: officialPackage ? "latest" : catalogRefKind,
+      source,
+      tagName: !officialPackage && catalogRefKind === "tag" ? catalogTagName : undefined,
+    });
+  };
+
+  return (
+    <Dialog
+      bodyClassName="plugin-market-install-dialog__body"
+      className="plugin-market-install-dialog"
+      closeLabel={t("common.close")}
+      footer={
+        installDone ? (
+          <Button onClick={closeDialog} variant="primary">
+            {t("common.confirm")}
+          </Button>
+        ) : (
+          <>
+            <Button onClick={closeDialog}>{t("common.cancel")}</Button>
+            <AsyncButton
+              icon={<DownloadCloud aria-hidden className="button__icon" />}
+              loading={installMutation.isPending}
+              onClick={startInstall}
+              variant="primary"
+            >
+              {installAsUpdate ? t("plugin.action.update") : t("plugin.action.install")}
+            </AsyncButton>
+          </>
+        )
+      }
+      onClose={closeDialog}
+      open={Boolean(plugin)}
+      title={t("plugin.installRef.title")}
+    >
+      <div className="plugin-detail">
+        {plugin ? (
+          <div className="plugin-market-install-summary">
+            <div className="plugin-market-card__header">
+              <div className="plugin-market-card__logo" aria-hidden="true">
+                {plugin.logo ? (
+                  <img alt="" src={plugin.logo} />
+                ) : (
+                  <span>{catalogDisplayName(plugin).slice(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="plugin-market-card__identity">
+                <div className="plugin-market-card__title-row">
+                  <h3>{catalogDisplayName(plugin)}</h3>
+                  {plugin.version ? (
+                    <span className="plugin-market-badge">v{plugin.version.replace(/^v/i, "")}</span>
+                  ) : null}
+                  <CatalogTrustBadge plugin={plugin} />
+                </div>
+                <span className="plugin-market-card__id">{plugin.name}</span>
+              </div>
+            </div>
+            <p className="plugin-card__description">{catalogDescription(plugin) || plugin.repo || plugin.entry}</p>
+            {installNotice ? (
+              <div
+                className="plugin-market-install-warning"
+                data-kind={installNotice.kind}
+                role={pluginTrustState(plugin) === "blocked" ? "alert" : "note"}
+              >
+                <strong>{installNotice.title}</strong>
+                <span>{installNotice.body}</span>
+              </div>
+            ) : null}
+            {officialPackage ? (
+              <dl className="plugin-market-package-grid">
+                <div>
+                  <dt>来源</dt>
+                  <dd>{plugin.packageSource?.toUpperCase() || "R2"}</dd>
+                </div>
+                <div>
+                  <dt>大小</dt>
+                  <dd>{formatBytes(plugin.packageSize ?? plugin.size) || "-"}</dd>
+                </div>
+                <div>
+                  <dt>SHA256</dt>
+                  <dd title={plugin.packageSha256 || plugin.sha256 || ""}>
+                    {compactSha(plugin.packageSha256 || plugin.sha256) || "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>更新日期</dt>
+                  <dd>{plugin.updatedAt ? plugin.updatedAt.slice(0, 10) : "-"}</dd>
+                </div>
+              </dl>
+            ) : (
+              <>
+                <p className="inline-status">{t("plugin.appUpdate.repo", { repo: plugin.repo ?? "-" })}</p>
+                <label className="field-row field-row--stack">
+                  <span className="field-row__label">{t("plugin.appUpdate.ref")}</span>
+                  <span className="field-row__control">
+                    <Select
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value === "latest" || value === "head") {
+                          setCatalogRefKind(value);
+                          return;
+                        }
+                        setCatalogRefKind("tag");
+                        setCatalogTagName(value.replace(/^tag:/, ""));
+                      }}
+                      value={catalogRefKind === "tag" ? `tag:${catalogTagName}` : catalogRefKind}
+                    >
+                      <option value="latest">{t("plugin.appUpdate.refLatest")}</option>
+                      <option value="head">{t("plugin.appUpdate.refHead")}</option>
+                      {catalogTagsQuery.data?.map((tag) => (
+                        <option key={tag} value={`tag:${tag}`}>
+                          {tag}
+                        </option>
+                      ))}
+                    </Select>
+                    {catalogTagsQuery.isLoading ? (
+                      <span className="field-row__help">{t("plugin.appUpdate.tagsLoading")}</span>
+                    ) : null}
+                    {catalogTagsQuery.isError ? (
+                      <span className="field-row__help" role="alert">
+                        {catalogTagsQuery.error instanceof Error
+                          ? catalogTagsQuery.error.message
+                          : t("plugin.appUpdate.tagsEmpty")}
+                      </span>
+                    ) : null}
+                    {!catalogTagsQuery.isLoading && !catalogTagsQuery.isError && !catalogTagsQuery.data?.length ? (
+                      <span className="field-row__help">{t("plugin.appUpdate.tagsEmpty")}</span>
+                    ) : null}
+                  </span>
+                </label>
+              </>
+            )}
+          </div>
+        ) : null}
+        <TaskProgress task={installTask} />
+      </div>
+    </Dialog>
   );
 }
 
@@ -213,8 +403,8 @@ export function PluginCatalogPanel({
   appUpdateTask,
   catalogQuery,
   installMutation,
-  installTask,
   installingSource,
+  onOpenCatalogInstall,
 }: PluginCatalogPanelProps) {
   const { showToast } = useToast();
   const { t } = useI18n();
@@ -227,9 +417,6 @@ export function PluginCatalogPanel({
   const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdate | null>(null);
   const [desktopUpdateProgress, setDesktopUpdateProgress] = useState<DesktopUpdateProgress | null>(null);
   const [desktopUpdateError, setDesktopUpdateError] = useState("");
-  const [pendingCatalogInstall, setPendingCatalogInstall] = useState<PluginCatalogItem | null>(null);
-  const [catalogRefKind, setCatalogRefKind] = useState<AppUpdateRefKind>("latest");
-  const [catalogTagName, setCatalogTagName] = useState("");
   const catalogMatches = useCallback((plugin: PluginCatalogItem, query: string) => {
     return searchablePluginText([
       plugin.id,
@@ -264,12 +451,6 @@ export function PluginCatalogPanel({
     queryKey: ["plugins", "app-update", "tags"],
     retry: 1,
   });
-  const catalogTagsQuery = useQuery({
-    enabled: Boolean(pendingCatalogInstall?.repo) && !hasOfficialPackage(pendingCatalogInstall),
-    queryFn: () => listRepoTags(pendingCatalogInstall ? catalogInstallSource(pendingCatalogInstall) : ""),
-    queryKey: ["plugins", "repo-tags", pendingCatalogInstall ? catalogInstallSource(pendingCatalogInstall) : ""],
-    retry: 1,
-  });
 
   useEffect(() => {
     if (!appUpdateTagName && appUpdateTagsQuery.data?.[0]) {
@@ -277,15 +458,7 @@ export function PluginCatalogPanel({
     }
   }, [appUpdateTagName, appUpdateTagsQuery.data]);
 
-  useEffect(() => {
-    if (!catalogTagName && catalogTagsQuery.data?.[0]) {
-      setCatalogTagName(catalogTagsQuery.data[0]);
-    }
-  }, [catalogTagName, catalogTagsQuery.data]);
-
   const appUpdateInfo = appUpdateInfoQuery.data;
-  const catalogInstallDone = Boolean(pendingCatalogInstall && installMutation.isSuccess && !installMutation.isPending);
-  const catalogInstallNotice = catalogTrustNotice(pendingCatalogInstall);
   const appUpdateDone = !desktopApp && pendingAppUpdate && appUpdateMutation.isSuccess && !appUpdateMutation.isPending;
   const desktopUpdateBusy =
     desktopApp &&
@@ -327,13 +500,6 @@ export function PluginCatalogPanel({
       unlisten?.();
     };
   }, [desktopApp, pendingAppUpdate, t]);
-
-  const closeCatalogInstallDialog = () => {
-    if (!installMutation.isPending) {
-      installMutation.reset();
-    }
-    setPendingCatalogInstall(null);
-  };
 
   const closeAppUpdateDialog = () => {
     if (desktopApp) {
@@ -419,20 +585,23 @@ export function PluginCatalogPanel({
           <div className="plugin-market-card__identity">
             <div className="plugin-market-card__title-row">
               <h3 title={displayName}>{displayName}</h3>
-              {plugin.version ? (
-                <span className="plugin-market-badge">v{plugin.version.replace(/^v/i, "")}</span>
-              ) : null}
+              <CatalogTrustBadge plugin={plugin} />
             </div>
             <span className="plugin-market-card__id" title={plugin.name}>
               {plugin.name}
             </span>
+            <div className="plugin-market-card__version-row">
+              {plugin.version ? <span className="plugin-card__badge">v{plugin.version.replace(/^v/i, "")}</span> : null}
+              {plugin.shinsekaiVersion ? (
+                <span className="plugin-card__badge plugin-card__badge--support">支持 {plugin.shinsekaiVersion}</span>
+              ) : null}
+            </div>
           </div>
         </div>
 
         <p className="plugin-market-card__description">{catalogDescription(plugin) || plugin.repo || plugin.entry}</p>
 
-        <div className="plugin-market-card__badges" aria-label="Plugin metadata">
-          <CatalogTrustBadge plugin={plugin} />
+        <div className="plugin-market-card__badges" aria-label="插件元数据">
           {officialPackage ? (
             <span className="plugin-market-badge plugin-market-badge--official">
               <PackageCheck aria-hidden size={13} />
@@ -447,7 +616,7 @@ export function PluginCatalogPanel({
           {scanPassed ? (
             <span className="plugin-market-badge plugin-market-badge--safe">
               <ShieldCheck aria-hidden size={13} />
-              Scan
+              扫描通过
             </span>
           ) : null}
           {installed ? (
@@ -459,10 +628,22 @@ export function PluginCatalogPanel({
         </div>
 
         <div className="plugin-market-card__meta">
-          <span title={plugin.author || ""}>
-            <UserRound aria-hidden size={14} />
-            {plugin.author || "-"}
-          </span>
+          {catalogAuthorLink(plugin) ? (
+            <button
+              className="plugin-inline-link"
+              onClick={() => openExternal(catalogAuthorLink(plugin))}
+              title={catalogAuthorLink(plugin)}
+              type="button"
+            >
+              <UserRound aria-hidden size={14} />
+              {plugin.author || "-"}
+            </button>
+          ) : (
+            <span title={plugin.author || ""}>
+              <UserRound aria-hidden size={14} />
+              {plugin.author || "-"}
+            </span>
+          )}
           <span title={plugin.updatedAt || ""}>
             <Clock3 aria-hidden size={14} />
             {plugin.updatedAt ? plugin.updatedAt.slice(0, 10) : "-"}
@@ -496,7 +677,7 @@ export function PluginCatalogPanel({
         <div className="plugin-market-card__foot">
           <span className="plugin-market-card__source" title={plugin.repo || plugin.entry || ""}>
             {officialPackage
-              ? compactSha(plugin.packageSha256 || plugin.sha256) || "official package"
+              ? compactSha(plugin.packageSha256 || plugin.sha256) || "官方包体"
               : plugin.repo || plugin.entry}
           </span>
           <div className="inline-actions">
@@ -506,10 +687,7 @@ export function PluginCatalogPanel({
               loading={installMutation.isPending && installingSource === source}
               onClick={() => {
                 if (plugin.repo || officialPackage) {
-                  installMutation.reset();
-                  setCatalogRefKind("latest");
-                  setCatalogTagName("");
-                  setPendingCatalogInstall(plugin);
+                  onOpenCatalogInstall(plugin);
                   return;
                 }
                 installMutation.mutate(source);
@@ -605,159 +783,6 @@ export function PluginCatalogPanel({
       {!catalogQuery.isLoading && !catalogQuery.isError && !catalogQuery.data?.length ? (
         <EmptyState title={t("plugin.catalog.emptyTitle")} body={t("plugin.catalog.emptyBody")} />
       ) : null}
-
-      {/* Catalog install ref-picker dialog */}
-      <Dialog
-        closeLabel={t("common.close")}
-        footer={
-          catalogInstallDone ? (
-            <Button onClick={closeCatalogInstallDialog} variant="primary">
-              {t("common.confirm")}
-            </Button>
-          ) : (
-            <>
-              <Button onClick={closeCatalogInstallDialog}>{t("common.cancel")}</Button>
-              <AsyncButton
-                icon={<DownloadCloud aria-hidden className="button__icon" />}
-                loading={installMutation.isPending}
-                onClick={() => {
-                  const source = pendingCatalogInstall ? catalogInstallSource(pendingCatalogInstall) : "";
-                  if (!source) {
-                    return;
-                  }
-                  const officialPackage = hasOfficialPackage(pendingCatalogInstall);
-                  if (!officialPackage && catalogRefKind === "tag" && !catalogTagName.trim()) {
-                    showToast({
-                      kind: "error",
-                      message: t("plugin.appUpdate.tagInvalid"),
-                      title: t("plugin.installRef.title"),
-                    });
-                    return;
-                  }
-                  installMutation.mutate({
-                    overwrite: Boolean(pendingCatalogInstall?.downloaded),
-                    refKind: officialPackage ? "latest" : catalogRefKind,
-                    source,
-                    tagName: !officialPackage && catalogRefKind === "tag" ? catalogTagName : undefined,
-                  });
-                }}
-                variant="primary"
-              >
-                {pendingCatalogInstall?.downloaded ? t("plugin.action.update") : t("plugin.action.install")}
-              </AsyncButton>
-            </>
-          )
-        }
-        onClose={closeCatalogInstallDialog}
-        open={Boolean(pendingCatalogInstall)}
-        title={t("plugin.installRef.title")}
-      >
-        <div className="plugin-detail">
-          {pendingCatalogInstall ? (
-            <div className="plugin-market-install-summary">
-              <div className="plugin-market-card__header">
-                <div className="plugin-market-card__logo" aria-hidden="true">
-                  {pendingCatalogInstall.logo ? (
-                    <img alt="" src={pendingCatalogInstall.logo} />
-                  ) : (
-                    <span>{catalogDisplayName(pendingCatalogInstall).slice(0, 2).toUpperCase()}</span>
-                  )}
-                </div>
-                <div className="plugin-market-card__identity">
-                  <div className="plugin-market-card__title-row">
-                    <h3>{catalogDisplayName(pendingCatalogInstall)}</h3>
-                    {pendingCatalogInstall.version ? (
-                      <span className="plugin-market-badge">v{pendingCatalogInstall.version.replace(/^v/i, "")}</span>
-                    ) : null}
-                    <CatalogTrustBadge plugin={pendingCatalogInstall} />
-                  </div>
-                  <span className="plugin-market-card__id">{pendingCatalogInstall.name}</span>
-                </div>
-              </div>
-              <p className="plugin-card__description">
-                {catalogDescription(pendingCatalogInstall) || pendingCatalogInstall.repo || pendingCatalogInstall.entry}
-              </p>
-              {catalogInstallNotice ? (
-                <div
-                  className="plugin-market-install-warning"
-                  data-kind={catalogInstallNotice.kind}
-                  role={pluginTrustState(pendingCatalogInstall) === "blocked" ? "alert" : "note"}
-                >
-                  <strong>{catalogInstallNotice.title}</strong>
-                  <span>{catalogInstallNotice.body}</span>
-                </div>
-              ) : null}
-              {hasOfficialPackage(pendingCatalogInstall) ? (
-                <dl className="plugin-market-package-grid">
-                  <div>
-                    <dt>Source</dt>
-                    <dd>{pendingCatalogInstall.packageSource?.toUpperCase() || "R2"}</dd>
-                  </div>
-                  <div>
-                    <dt>Size</dt>
-                    <dd>{formatBytes(pendingCatalogInstall.packageSize ?? pendingCatalogInstall.size) || "-"}</dd>
-                  </div>
-                  <div>
-                    <dt>SHA256</dt>
-                    <dd title={pendingCatalogInstall.packageSha256 || pendingCatalogInstall.sha256 || ""}>
-                      {compactSha(pendingCatalogInstall.packageSha256 || pendingCatalogInstall.sha256) || "-"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Updated</dt>
-                    <dd>{pendingCatalogInstall.updatedAt ? pendingCatalogInstall.updatedAt.slice(0, 10) : "-"}</dd>
-                  </div>
-                </dl>
-              ) : (
-                <>
-                  <p className="inline-status">
-                    {t("plugin.appUpdate.repo", { repo: pendingCatalogInstall.repo ?? "-" })}
-                  </p>
-                  <label className="field-row field-row--stack">
-                    <span className="field-row__label">{t("plugin.appUpdate.ref")}</span>
-                    <span className="field-row__control">
-                      <Select
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          if (value === "latest" || value === "head") {
-                            setCatalogRefKind(value);
-                            return;
-                          }
-                          setCatalogRefKind("tag");
-                          setCatalogTagName(value.replace(/^tag:/, ""));
-                        }}
-                        value={catalogRefKind === "tag" ? `tag:${catalogTagName}` : catalogRefKind}
-                      >
-                        <option value="latest">{t("plugin.appUpdate.refLatest")}</option>
-                        <option value="head">{t("plugin.appUpdate.refHead")}</option>
-                        {catalogTagsQuery.data?.map((tag) => (
-                          <option key={tag} value={`tag:${tag}`}>
-                            {tag}
-                          </option>
-                        ))}
-                      </Select>
-                      {catalogTagsQuery.isLoading ? (
-                        <span className="field-row__help">{t("plugin.appUpdate.tagsLoading")}</span>
-                      ) : null}
-                      {catalogTagsQuery.isError ? (
-                        <span className="field-row__help" role="alert">
-                          {catalogTagsQuery.error instanceof Error
-                            ? catalogTagsQuery.error.message
-                            : t("plugin.appUpdate.tagsEmpty")}
-                        </span>
-                      ) : null}
-                      {!catalogTagsQuery.isLoading && !catalogTagsQuery.isError && !catalogTagsQuery.data?.length ? (
-                        <span className="field-row__help">{t("plugin.appUpdate.tagsEmpty")}</span>
-                      ) : null}
-                    </span>
-                  </label>
-                </>
-              )}
-            </div>
-          ) : null}
-          <TaskProgress task={installTask} />
-        </div>
-      </Dialog>
 
       {/* App update dialog */}
       <Dialog

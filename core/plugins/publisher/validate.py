@@ -6,7 +6,8 @@ from urllib.parse import urlparse
 
 
 MAX_DESC_CHARS = 200
-REQUIRED_FIELDS = ("display_name", "desc", "author", "repo", "entry")
+REQUIRED_FIELDS = ("display_name", "desc", "author", "repo")
+OPTIONAL_STRING_FIELDS = ("entry", "logo", "shinsekai_version", "social_link", "version")
 SLUG_PART_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
@@ -72,15 +73,18 @@ def normalize_submission(payload: dict[str, Any]) -> dict[str, Any]:
     if len(desc) > MAX_DESC_CHARS:
         raise PluginSubmissionError(f"desc must be {MAX_DESC_CHARS} characters or fewer.")
 
-    return {
+    normalized = {
         "display_name": require_string(payload, "display_name"),
         "desc": desc,
         "author": require_string(payload, "author"),
         "repo": normalize_github_repo_url(payload.get("repo")),
-        "entry": require_string(payload, "entry"),
         "tags": normalize_tags(payload.get("tags")),
-        "social_link": as_string(payload.get("social_link")),
     }
+    for field in OPTIONAL_STRING_FIELDS:
+        value = as_string(payload.get(field))
+        if value:
+            normalized[field] = value
+    return normalized
 
 
 def validation_errors(payload: dict[str, Any]) -> list[str]:
