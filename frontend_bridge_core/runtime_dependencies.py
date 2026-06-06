@@ -12,64 +12,14 @@ from core.plugins.pip_index_config import (
     has_explicit_pip_index as _has_explicit_pip_index,
     pip_index_args as _configured_pip_index_args,
 )
-
-
-_NO_MODULE_PATTERNS = (
-    re.compile(r"(?:ModuleNotFoundError|ImportError):\s+No module named ['\"]([^'\"]+)['\"]"),
-    re.compile(r"No module named ['\"]([^'\"]+)['\"]"),
+from sdk.exception.types import (
+    MODULE_PACKAGE_MAP,
+    missing_module_from_text,
+    package_for_module,
+    runtime_dependency_error_from_text,
 )
 _SAFE_PACKAGE_RE = re.compile(r"^[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?$")
 _URL_CREDENTIAL_RE = re.compile(r"(?P<scheme>https?://)(?P<user>[^:/\s@]+)(?::(?P<password>[^@\s/]+))?@")
-
-MODULE_PACKAGE_MAP = {
-    "PIL": "Pillow",
-    "anthropic": "anthropic",
-    "cv2": "opencv-python",
-    "google": "google-genai",
-    "google.genai": "google-genai",
-    "numpy": "numpy",
-    "openai": "openai",
-    "opencc": "opencc-python-reimplemented",
-    "pandas": "pandas",
-    "pygame": "pygame",
-    "PySide6": "PySide6",
-    "requests": "requests",
-    "socksio": "socksio",
-    "tiktoken": "tiktoken",
-    "yaml": "PyYAML",
-}
-
-
-def missing_module_from_text(text: str) -> str | None:
-    for pattern in _NO_MODULE_PATTERNS:
-        match = pattern.search(text or "")
-        if match:
-            module_name = match.group(1).strip()
-            return module_name or None
-    return None
-
-
-def package_for_module(module_name: str) -> str:
-    module_name = (module_name or "").strip()
-    if module_name in MODULE_PACKAGE_MAP:
-        return MODULE_PACKAGE_MAP[module_name]
-    top_level = module_name.split(".", 1)[0]
-    return MODULE_PACKAGE_MAP.get(top_level, top_level or module_name)
-
-
-def runtime_dependency_error_from_text(text: str, *, log_path: str | Path | None = None) -> dict[str, Any] | None:
-    module_name = missing_module_from_text(text)
-    if not module_name:
-        return None
-    package_name = package_for_module(module_name)
-    error = {
-        "message": f"Missing Python module: {module_name}",
-        "moduleName": module_name,
-        "packageName": package_name,
-    }
-    if log_path:
-        error["logPath"] = str(log_path)
-    return error
 
 
 def _redact_url_credentials(text: str) -> str:

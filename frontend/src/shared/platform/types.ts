@@ -611,6 +611,10 @@ export interface LlmModelOption {
   tags: string[];
 }
 
+export interface LlmConnectionTestResult {
+  message: string;
+}
+
 export interface PluginUninstallResult {
   folderNote?: string;
   message: string;
@@ -639,6 +643,7 @@ export interface TtsBundleDownloadResult {
 export type ChatRuntimeStatus = "idle" | "listening" | "generating" | "streaming" | "speaking" | "paused" | "error";
 
 export interface RuntimeDependencyError {
+  kind?: "missing_dependency";
   logPath?: string;
   message: string;
   moduleName: string;
@@ -807,6 +812,12 @@ export interface ShinsekaiPlatform {
       options?: TaskProgressOptions<TtsBundleDownloadResult>,
     ) => Promise<TtsBundleDownloadResult>;
     fetchLlmModels: (input: { apiKey: string; baseUrl: string; provider: string }) => Promise<LlmModelOption[]>;
+    testLlmConnection: (input: {
+      apiKey: string;
+      baseUrl: string;
+      model: string;
+      provider: string;
+    }) => Promise<LlmConnectionTestResult>;
     get: () => Promise<AppConfig>;
     getTtsBundleRecommendation: () => Promise<TtsBundleRecommendation>;
     saveApi: (config: ApiConfig) => Promise<ApiConfig>;
