@@ -270,7 +270,7 @@ def _registry_package_metadata(record: Any, *, dependency_status: str = "", depe
         "packageStatus": "verified",
         "packageUrl": package_url,
         "repo": str(getattr(record, "repo", "") or "").strip(),
-        "sourceLabel": "Official package (R2)",
+        "sourceLabel": "官方包体 (R2)",
         "sourceType": "package",
     }
     return {key: value for key, value in metadata.items() if value not in (None, "")}
@@ -328,10 +328,11 @@ def _install_registry_package_source(
     _update_task(
         state,
         task_id,
-        message=f"Downloading official package for {display_name or repo_slug or target.name}.",
+        message=f"正在下载 {display_name or repo_slug or target.name} 的官方包体。",
         phase="download",
         progress=0.12,
         installSource="package",
+        installSourceLabel="官方包体 (R2)",
         packageStatus="downloading",
     )
 
@@ -349,7 +350,7 @@ def _install_registry_package_source(
         _update_task(
             state,
             task_id,
-            message="Official package verified. Installing plugin dependencies.",
+            message="官方包体已校验，正在安装插件依赖。",
             phase="pip",
             progress=0.72,
             packageStatus="verified",
@@ -371,7 +372,7 @@ def _install_registry_package_source(
         _update_task(
             state,
             task_id,
-            message="Registering official package install.",
+            message="正在登记官方包体安装状态。",
             phase="manifest",
             progress=0.9,
             dependencyInstallStatus=dependency_status,
@@ -380,19 +381,19 @@ def _install_registry_package_source(
             result = _plugin_result_from_manifest(entry)
             if repo_slug:
                 mark_repo_downloaded(repo_slug, manifest_entry=entry, install_metadata=metadata)
-            _update_task(state, task_id, message="Official package installed.", phase="completed", progress=1)
+            _update_task(state, task_id, message="官方包体安装完成。", phase="completed", progress=1)
             if backup is not None:
                 shutil.rmtree(backup, ignore_errors=True)
             return _with_install_metadata(result, metadata)
         if repo_slug:
             mark_repo_downloaded(repo_slug, manifest_entry=None)
         result = _synthetic_plugin_result(
-            description=description or f"Package was downloaded to {plugin_root.as_posix()}, but no manifest entry was found.",
+            description=description or f"包体已下载到 {plugin_root.as_posix()}，但没有找到可登记的插件入口。",
             enabled=False,
             plugin_id=repo_slug or str(getattr(record, "id", "") or target.name),
             title=display_name or target.name,
         )
-        _update_task(state, task_id, message="Official package downloaded, but no manifest entry was found.", progress=1)
+        _update_task(state, task_id, message="官方包体已下载，但没有找到可登记的插件入口。", progress=1)
         if backup is not None:
             shutil.rmtree(backup, ignore_errors=True)
         return _with_install_metadata(result, metadata)
@@ -426,7 +427,7 @@ def _install_plugin_source(
         except Exception as exc:
             repo = str(getattr(registry_rec, "repo", "") or "").strip()
             if repo and _package_error_allows_github_fallback(exc):
-                _append_task_log(state, task_id, f"Official package download failed; falling back to GitHub: {exc}")
+                _append_task_log(state, task_id, f"官方包体下载失败，改用 GitHub 源码安装：{exc}")
                 return _install_github_plugin_source(
                     state,
                     task_id,
@@ -435,7 +436,7 @@ def _install_plugin_source(
                     tag_name=tag_name,
                     overwrite=overwrite,
                 )
-            _append_task_log(state, task_id, f"Official package install failed; GitHub fallback blocked: {exc}")
+            _append_task_log(state, task_id, f"官方包体安装失败，已阻止 GitHub fallback：{exc}")
             raise RuntimeError(str(exc) or type(exc).__name__) from exc
 
     if not _is_repo_source(source) and registry_rec is not None:
