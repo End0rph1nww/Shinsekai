@@ -126,6 +126,21 @@ def test_build_issue_url_defaults_to_staging_registry_fork(monkeypatch):
     assert issue_form_json(issue_url) == normalize_submission(valid_submission())
 
 
+def test_build_issue_url_removes_legacy_body_parameter():
+    issue_url = build_issue_url(
+        valid_submission(),
+        base_url=(
+            "https://github.com/example-org/example-registry/issues/new"
+            "?template=PLUGIN_PUBLISH.yml&body=legacy-body&labels=plugin-publish"
+        ),
+    )
+    query = parse_qs(urlparse(issue_url).query)
+
+    assert "body" not in query
+    assert query["labels"] == ["plugin-publish"]
+    assert issue_form_json(issue_url) == normalize_submission(valid_submission())
+
+
 def test_build_issue_url_targets_upstream_registry_when_configured(monkeypatch):
     monkeypatch.delenv("SHINSEKAI_PLUGIN_SUBMIT_URL", raising=False)
     monkeypatch.setenv("SHINSEKAI_PLUGIN_SUBMIT_TARGET", "upstream")

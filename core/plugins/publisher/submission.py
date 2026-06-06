@@ -38,6 +38,7 @@ def build_issue_url(payload: dict[str, Any], base_url: str | None = None) -> str
     query = dict(parse_qsl(split.query, keep_blank_values=True))
     query.setdefault("template", ISSUE_TEMPLATE)
     query["title"] = f"[Plugin] {normalized['display_name']}"
+    query.pop("body", None)
     query[ISSUE_FORM_PLUGIN_INFO_FIELD] = f"```json\n{json.dumps(normalized, ensure_ascii=False, indent=2)}\n```\n"
     return urlunsplit((split.scheme, split.netloc, split.path, urlencode(query), split.fragment))
 

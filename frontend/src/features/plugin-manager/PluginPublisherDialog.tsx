@@ -259,7 +259,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("displayName", event.target.value)}
-              placeholder="Whisper Asr"
+              placeholder="Shinsekai Plugin"
               value={form.displayName}
             />
           </label>
@@ -268,7 +268,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("author", event.target.value)}
-              placeholder="RachelForster"
+              placeholder="Shinsekai Contributors"
               value={form.author}
             />
           </label>
@@ -277,7 +277,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("repo", event.target.value)}
-              placeholder="https://github.com/RachelForster/Shinsekai"
+              placeholder="https://github.com/shinsekai/plugin-example"
               value={form.repo}
             />
           </label>
@@ -286,7 +286,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("entry", event.target.value)}
-              placeholder="plugins.whisper_asr.plugin:WhisperAsrPlugin"
+              placeholder="plugins.shinsekai_plugin.plugin:ShinsekaiPlugin"
               value={form.entry}
             />
           </label>
@@ -295,7 +295,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextArea
               maxLength={MAX_DESC_CHARS + 80}
               onChange={(event) => updateForm("desc", event.target.value)}
-              placeholder="面向 Shinsekai 的云端 TTS 适配插件。"
+              placeholder="面向 Shinsekai 的示例插件，说明核心能力和适用场景。"
               rows={4}
               value={form.desc}
             />
@@ -308,7 +308,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("tags", event.target.value)}
-              placeholder="tts, cloud"
+              placeholder="shinsekai, example"
               value={form.tags}
             />
           </label>
@@ -317,7 +317,7 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
             <TextInput
               autoComplete="off"
               onChange={(event) => updateForm("socialLink", event.target.value)}
-              placeholder="https://github.com/RachelForster"
+              placeholder="https://github.com/shinsekai"
               value={form.socialLink}
             />
           </label>

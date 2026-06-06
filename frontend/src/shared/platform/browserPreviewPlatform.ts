@@ -913,15 +913,15 @@ export function createBrowserPreviewPlatform(): ShinsekaiPlatform {
       scanLocal(input) {
         const baseName = input.path.split(/[\\/]/).filter(Boolean).pop() || "preview-plugin";
         return delay({
-          author: "Shinsekai",
-          desc: "Preview submission generated from a local plugin folder.",
+          author: "Shinsekai Contributors",
+          desc: "Example submission generated from a local plugin folder.",
           display_name: baseName.replace(/[-_]+/g, " "),
           entry: `plugins.${baseName.replace(/[^A-Za-z0-9_]/g, "_")}.plugin:PreviewPlugin`,
           logo: "",
           path: input.path,
-          repo: `https://github.com/RachelForster/${baseName}`,
+          repo: `https://github.com/shinsekai/${baseName}`,
           requirements: "",
-          social_link: "https://github.com/RachelForster",
+          social_link: "https://github.com/shinsekai",
           tags: ["preview"],
           warnings: ["Browser preview uses sample metadata and does not read local files."],
         });
