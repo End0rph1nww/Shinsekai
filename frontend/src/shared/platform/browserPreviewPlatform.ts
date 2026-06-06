@@ -127,7 +127,10 @@ function normalizePreviewPluginSubmission(input: PluginSubmissionInput): PluginS
     entry: input.entry.trim(),
     repo: input.repo.trim().replace(/\.git$/i, ""),
     social_link: (input.social_link ?? "").trim(),
-    tags: (input.tags ?? []).map((tag) => tag.trim()).filter(Boolean).slice(0, 5),
+    tags: (input.tags ?? [])
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 5),
   };
 }
 
