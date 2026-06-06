@@ -538,7 +538,7 @@ npm run build
 
 ## PR 8: Main Client Local Submit Helper
 
-**Branch:** `feat/plugin-publisher-local-submit`
+**Branch:** `feat/plugin-publisher-local-submit` (currently implemented on `integration/plugin-distribution-system` for fork integration testing)
 
 **Repo:** `D:\Workspace\Assistant\Shinsekai-main-20260606`
 
@@ -547,6 +547,8 @@ npm run build
 **Commit style:** `feat(plugin-publisher): add local issue submit helper`
 
 **Purpose:** Extend #69 without creating a second publishing route. The local client should scan local plugin metadata, prefill the same form used by the market, generate the same JSON, and open/copy the same Registry Issue URL. It must not upload packages or write directly to Registry.
+
+**Implementation note:** During fork testing, the default submission target points to `End0rph1nww/Shinsekai-Plugin-Registry`. Before preparing the author-facing PR, switch the default target with `SHINSEKAI_PLUGIN_SUBMIT_TARGET=upstream` or set `SHINSEKAI_PLUGIN_SUBMIT_URL` explicitly.
 
 **Files:**
 
@@ -576,22 +578,28 @@ npm run build
 
 **Steps:**
 
-- [ ] Add `metadata.py` to scan a local plugin folder for README title, package folder, candidate `entry`, `requirements.txt`, logo file, and repository URL from git remote config.
-- [ ] Add `submission.py` to serialize exactly the same JSON fields as PR 5 and PR 7: `display_name`, `desc`, `author`, `repo`, `entry`, `tags`, and `social_link`.
-- [ ] Add `validate.py` with the same validation rules as registry CI: GitHub URL only, required fields, `desc` <= 200 Unicode characters, and at most 5 tag strings.
-- [ ] Add `frontend_bridge_core\plugin_publisher.py` commands for `scanLocalPlugin`, `validatePluginSubmission`, `buildPluginSubmissionIssueUrl`, and `copyPluginSubmissionJson`.
-- [ ] Add a `Submit Plugin` action in the plugin manager that opens `PluginPublisherDialog`.
-- [ ] Build the dialog with the same field order as the market wizard: fill form, preview JSON, open GitHub Issue.
-- [ ] Read the Issue URL from `SHINSEKAI_PLUGIN_SUBMIT_URL`; default to the staging fork only in dev builds and document the upstream production target.
-- [ ] Add tests that a fixed input produces byte-equivalent JSON to the shared contract above.
-- [ ] Add tests for invalid GitHub URL, missing `entry`, too-long `desc`, too many tags, and empty plugin directory scan.
-- [ ] Run:
+- [x] Add `metadata.py` to scan a local plugin folder for README title, package folder, candidate `entry`, `requirements.txt`, logo file, and repository URL from git remote config.
+- [x] Add `submission.py` to serialize exactly the same JSON fields as PR 5 and PR 7: `display_name`, `desc`, `author`, `repo`, `entry`, `tags`, and `social_link`.
+- [x] Add `validate.py` with the same validation rules as registry CI: GitHub URL only, required fields, `desc` <= 200 Unicode characters, and at most 5 tag strings.
+- [x] Add `frontend_bridge_core\plugin_publisher.py` commands for `scanLocalPlugin`, `validatePluginSubmission`, `buildPluginSubmissionIssueUrl`, and `copyPluginSubmissionJson`.
+- [x] Add a `Submit Plugin` action in the plugin manager that opens `PluginPublisherDialog`.
+- [x] Build the dialog with the same field order as the market wizard: fill form, preview JSON, open GitHub Issue.
+- [x] Read the Issue URL from `SHINSEKAI_PLUGIN_SUBMIT_URL`; default to the staging fork for fork integration testing and document the upstream production target.
+- [x] Add tests that a fixed input produces byte-equivalent JSON to the shared contract above.
+- [x] Add tests for invalid GitHub URL, missing `entry`, too-long `desc`, too many tags, and empty plugin directory scan.
+- [x] Run:
 
 ```powershell
 cd D:\Workspace\Assistant\Shinsekai-main-20260606
 python -m pytest test\unit\test_plugin_publisher.py -q
 pnpm --dir frontend test src/test/pluginPublisher.test.tsx
 pnpm --dir frontend build
+```
+
+Additional frontend regression check:
+
+```powershell
+pnpm --dir frontend test src/test/repositories.test.ts src/test/pluginPublisher.test.tsx src/test/features/plugin-manager/PluginManagerPage.test.tsx
 ```
 
 **PR boundary:** This PR only creates a local authoring convenience layer. It must not upload to R2, commit to Registry, bypass Issue review, or define a schema different from the market wizard.

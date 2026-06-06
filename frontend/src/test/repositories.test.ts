@@ -334,6 +334,46 @@ describe("entity repositories", () => {
         install: vi.fn().mockResolvedValue({ id: "core-tools" }),
         list: vi.fn().mockResolvedValue([]),
         repoTags: vi.fn().mockResolvedValue(["v0.1.0"]),
+        scanLocal: vi.fn().mockResolvedValue({
+          author: "Tester",
+          desc: "Local plugin",
+          display_name: "Local Plugin",
+          entry: "plugins.local.plugin:LocalPlugin",
+          path: "/tmp/local-plugin",
+          repo: "https://github.com/End0rph1nww/local-plugin",
+          social_link: "https://github.com/End0rph1nww",
+          tags: ["local"],
+          warnings: [],
+        }),
+        validateSubmission: vi.fn().mockResolvedValue({ errors: [], json: "{}", ok: true }),
+        buildSubmissionIssueUrl: vi.fn().mockResolvedValue({
+          issueUrl: "https://github.com/End0rph1nww/Shinsekai-Plugin-Registry/issues/new",
+          json: "{}",
+          submission: {
+            author: "Tester",
+            desc: "Local plugin",
+            display_name: "Local Plugin",
+            entry: "plugins.local.plugin:LocalPlugin",
+            repo: "https://github.com/End0rph1nww/local-plugin",
+            social_link: "",
+            tags: ["local"],
+          },
+          submitUrl: "https://github.com/End0rph1nww/Shinsekai-Plugin-Registry/issues/new",
+        }),
+        copySubmissionJson: vi.fn().mockResolvedValue({
+          clipboardText: "{}",
+          json: "{}",
+          message: "copied",
+          submission: {
+            author: "Tester",
+            desc: "Local plugin",
+            display_name: "Local Plugin",
+            entry: "plugins.local.plugin:LocalPlugin",
+            repo: "https://github.com/End0rph1nww/local-plugin",
+            social_link: "",
+            tags: ["local"],
+          },
+        }),
         runUiAction: vi.fn().mockResolvedValue({
           message: "ok",
           page: {
@@ -372,6 +412,34 @@ describe("entity repositories", () => {
     await plugin.runPluginUiAction("core-tools", "settings", "reload", { enabled: true });
     await plugin.listPluginCatalog();
     await plugin.listRepoTags("myouo/Shinsekai");
+    await plugin.scanLocalPlugin("/tmp/local-plugin");
+    await plugin.validatePluginSubmission({
+      author: "Tester",
+      desc: "Local plugin",
+      display_name: "Local Plugin",
+      entry: "plugins.local.plugin:LocalPlugin",
+      repo: "https://github.com/End0rph1nww/local-plugin",
+      social_link: "",
+      tags: ["local"],
+    });
+    await plugin.buildPluginSubmissionIssueUrl({
+      author: "Tester",
+      desc: "Local plugin",
+      display_name: "Local Plugin",
+      entry: "plugins.local.plugin:LocalPlugin",
+      repo: "https://github.com/End0rph1nww/local-plugin",
+      social_link: "",
+      tags: ["local"],
+    });
+    await plugin.copyPluginSubmissionJson({
+      author: "Tester",
+      desc: "Local plugin",
+      display_name: "Local Plugin",
+      entry: "plugins.local.plugin:LocalPlugin",
+      repo: "https://github.com/End0rph1nww/local-plugin",
+      social_link: "",
+      tags: ["local"],
+    });
     await plugin.getAppUpdateInfo();
     await plugin.listAppUpdateTags();
     await plugin.runAppUpdate({ refKind: "tag", tagName: "v0.1.0" }, taskOptions);

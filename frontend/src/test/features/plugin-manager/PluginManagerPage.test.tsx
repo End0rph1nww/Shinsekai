@@ -14,6 +14,8 @@ vi.mock("../../../entities/plugin/repository", () => ({
   getAppUpdateInfo: vi.fn(),
   getPluginUiDetail: () => mockGetPluginUiDetail(),
   installPlugin: vi.fn(),
+  buildPluginSubmissionIssueUrl: vi.fn(),
+  copyPluginSubmissionJson: vi.fn(),
   listAppUpdateTags: vi.fn(),
   listPluginCatalog: vi.fn(),
   listPlugins: () => mockListPlugins(),
@@ -22,8 +24,10 @@ vi.mock("../../../entities/plugin/repository", () => ({
   pluginUiQueryKey: (id: string) => ["plugins", "ui", id],
   runAppUpdate: vi.fn(),
   savePluginUiConfig: vi.fn(),
+  scanLocalPlugin: vi.fn(),
   setPluginEnabled: vi.fn(),
   uninstallPlugin: vi.fn(),
+  validatePluginSubmission: vi.fn(),
 }));
 
 const configurablePlugin: PluginManifest = {
@@ -138,5 +142,14 @@ describe("PluginManagerPage", () => {
     expect(screen.getByRole("heading", { name: "Dynamic Group" })).toBeInTheDocument();
     expect(screen.getByDisplayValue("ready")).toBeInTheDocument();
     expect(mockGetPluginUiDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the local plugin publisher dialog from the page actions", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit plugin" }));
+
+    expect(screen.getByRole("heading", { name: "Submit plugin to market" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scan folder" })).toBeInTheDocument();
   });
 });

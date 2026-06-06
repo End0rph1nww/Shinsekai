@@ -228,6 +228,43 @@ export interface PluginInstallInput {
   tagName?: string;
 }
 
+export interface PluginSubmissionInput {
+  author: string;
+  desc: string;
+  display_name: string;
+  entry: string;
+  repo: string;
+  social_link?: string;
+  tags: string[];
+}
+
+export interface PluginLocalScanResult extends PluginSubmissionInput {
+  logo?: string;
+  path: string;
+  requirements?: string;
+  warnings: string[];
+}
+
+export interface PluginSubmissionPayload {
+  json: string;
+  submission: PluginSubmissionInput;
+}
+
+export interface PluginSubmissionValidationResult extends Partial<PluginSubmissionPayload> {
+  errors: string[];
+  ok: boolean;
+}
+
+export interface PluginSubmissionIssueResult extends PluginSubmissionPayload {
+  issueUrl: string;
+  submitUrl: string;
+}
+
+export interface PluginSubmissionClipboardResult extends PluginSubmissionPayload {
+  clipboardText: string;
+  message: string;
+}
+
 export type McpTransport = "sse" | "stdio" | "streamable_http";
 
 export interface McpServerEntry {
@@ -817,6 +854,10 @@ export interface ShinsekaiPlatform {
     getUi: (id: string) => Promise<PluginUIDetail>;
     list: () => Promise<PluginManifest[]>;
     repoTags: (repo: string) => Promise<string[]>;
+    scanLocal: (input: { path: string }) => Promise<PluginLocalScanResult>;
+    validateSubmission: (input: PluginSubmissionInput) => Promise<PluginSubmissionValidationResult>;
+    buildSubmissionIssueUrl: (input: PluginSubmissionInput) => Promise<PluginSubmissionIssueResult>;
+    copySubmissionJson: (input: PluginSubmissionInput) => Promise<PluginSubmissionClipboardResult>;
     runUiAction: (
       id: string,
       pageId: string,

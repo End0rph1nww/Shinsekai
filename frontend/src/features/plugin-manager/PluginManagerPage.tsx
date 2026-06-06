@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Power, RotateCcw, Settings, Trash2 } from "lucide-react";
+import { Power, RotateCcw, Send, Settings, Trash2 } from "lucide-react";
 
 import {
   installPlugin,
@@ -39,6 +39,7 @@ import { McpSettingsPanel } from "./McpSettingsPanel";
 import { PluginCatalogPanel } from "./PluginCatalogPanel";
 import { PluginDetailPanel } from "./PluginDetailPanel";
 import { PluginListControls, searchablePluginText, usePagedPluginList } from "./PluginListControls";
+import { PluginPublisherDialog } from "./PluginPublisherDialog";
 import {
   pluginActionId,
   pluginHasManifestEntry,
@@ -64,6 +65,7 @@ export function PluginManagerPage() {
   const [pendingUninstall, setPendingUninstall] = useState<PluginManifest | null>(null);
   const [detailPlugin, setDetailPlugin] = useState<PluginManifest | null>(null);
   const [pluginReloadPending, setPluginReloadPending] = useState(false);
+  const [publisherOpen, setPublisherOpen] = useState(false);
   const [appUpdateTask, setAppUpdateTask] = useState<TaskSnapshot<AppUpdateResult> | null>(null);
   const installedPluginMatches = useCallback((plugin: PluginManifest, query: string) => {
     return searchablePluginText([
@@ -225,6 +227,13 @@ export function PluginManagerPage() {
           ) : null}
         </div>
         <div className="page__actions plugin-page__actions">
+          <Button
+            icon={<Send aria-hidden className="button__icon" />}
+            onClick={() => setPublisherOpen(true)}
+            variant="primary"
+          >
+            {t("plugin.publisher.open")}
+          </Button>
           {desktopApp ? (
             <AsyncButton
               className={
@@ -405,6 +414,7 @@ export function PluginManagerPage() {
         open={Boolean(pendingUninstall)}
         title={t("plugin.uninstall.confirmTitle")}
       />
+      <PluginPublisherDialog onClose={() => setPublisherOpen(false)} open={publisherOpen} />
     </div>
   );
 }
