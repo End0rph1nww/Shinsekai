@@ -20,7 +20,6 @@ def valid_submission(**overrides):
         "desc": "Short plugin description.",
         "author": "sample-owner",
         "repo": "https://github.com/sample-owner/demo-plugin",
-        "entry": "plugins.demo_plugin.plugin:DemoPlugin",
         "tags": ["utility", "voice"],
         "social_link": "https://github.com/sample-owner",
     }
@@ -65,6 +64,20 @@ def test_scan_local_plugin_infers_metadata_and_sanitizes_hyphenated_entry():
     assert result["tags"] == []
 
 
+def test_scan_local_plugin_normalizes_root_directory_name_to_lowercase_entry():
+    with TemporaryDirectory(prefix="plugin-publisher-", dir=Path.cwd()) as temp_dir:
+        plugin_root = Path(temp_dir) / "Shinsekai-Plugin-Market"
+        plugin_root.mkdir()
+        (plugin_root / "plugin.py").write_text(
+            "class MarketPlugin(PluginBase):\n    pass\n",
+            encoding="utf-8",
+        )
+
+        result = scan_local_plugin(plugin_root)
+
+    assert result["entry"] == "plugins.shinsekai_plugin_market.plugin:MarketPlugin"
+
+
 def test_normalize_submission_normalizes_repo_url_and_serializes_contract_json():
     payload = valid_submission(
         display_name="  Demo Plugin  ",
@@ -80,12 +93,20 @@ def test_normalize_submission_normalizes_repo_url_and_serializes_contract_json()
         "desc": "Short plugin description.",
         "author": "sample-owner",
         "repo": "https://github.com/sample-owner/demo-plugin",
-        "entry": "plugins.demo_plugin.plugin:DemoPlugin",
         "tags": ["utility", "voice", "tools"],
         "social_link": "https://github.com/sample-owner",
     }
     assert normalized == expected
     assert json.loads(submission_json(payload)) == expected
+
+
+def test_normalize_submission_drops_entry_from_legacy_payload():
+    payload = valid_submission(entry="plugins.demo_plugin.plugin:DemoPlugin")
+
+    normalized = normalize_submission(payload)
+
+    assert "entry" not in normalized
+    assert "entry" not in json.loads(submission_json(payload))
 
 
 @pytest.mark.parametrize("field", ("display_name", "desc", "author", "repo"))

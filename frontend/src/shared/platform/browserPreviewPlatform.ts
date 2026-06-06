@@ -124,7 +124,6 @@ function normalizePreviewPluginSubmission(input: PluginSubmissionInput): PluginS
     author: input.author.trim(),
     desc: input.desc.trim(),
     display_name: input.display_name.trim(),
-    entry: (input.entry ?? "").trim() || undefined,
     repo: input.repo.trim().replace(/\.git$/i, ""),
     shinsekai_version: (input.shinsekai_version ?? "").trim(),
     social_link: (input.social_link ?? "").trim(),

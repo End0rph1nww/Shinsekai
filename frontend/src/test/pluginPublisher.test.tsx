@@ -16,7 +16,6 @@ const submission: PluginSubmissionInput = {
   author: "End0rph1nww",
   desc: "Cloud TTS plugin",
   display_name: "Cloud TTS",
-  entry: "plugins.cloud_tts.plugin:CloudTTSPlugin",
   repo: "https://github.com/End0rph1nww/shinsekai-cloud-tts",
   social_link: "https://github.com/End0rph1nww",
   tags: ["tts", "cloud"],
@@ -33,6 +32,7 @@ describe("plugin publisher bridge", () => {
       .mockImplementationOnce(() =>
         mockJsonResponse({
           ...submission,
+          entry: "plugins.cloud_tts.plugin:CloudTTSPlugin",
           logo: "",
           path: "D:/plugins/cloud-tts",
           requirements: "requirements.txt",

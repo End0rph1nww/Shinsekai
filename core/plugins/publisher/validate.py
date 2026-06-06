@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 MAX_DESC_CHARS = 200
 REQUIRED_FIELDS = ("display_name", "desc", "author", "repo")
-OPTIONAL_STRING_FIELDS = ("entry", "logo", "shinsekai_version", "social_link", "version")
+OPTIONAL_STRING_FIELDS = ("shinsekai_version", "social_link", "version")
 SLUG_PART_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 

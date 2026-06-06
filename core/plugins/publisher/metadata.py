@@ -32,7 +32,7 @@ def scan_local_plugin(path: str | Path) -> dict[str, Any]:
     if not any(root.iterdir()):
         warnings.append("Plugin directory is empty.")
     if not entry:
-        warnings.append("Could not infer plugin entry. Fill it manually.")
+        warnings.append("Could not preview plugin entry. Registry CI will infer it from the submitted repository.")
     if not repo:
         warnings.append("Could not infer GitHub repository from git remote.")
 
@@ -181,7 +181,7 @@ def first_plugin_class(path: Path) -> str:
 
 
 def python_identifier(value: str) -> str:
-    cleaned = re.sub(r"\W+", "_", value.strip()).strip("_")
+    cleaned = re.sub(r"\W+", "_", value.strip().lower()).strip("_")
     if not cleaned:
         return "plugin"
     if cleaned[0].isdigit():

@@ -23,7 +23,6 @@ interface PublisherFormState {
   author: string;
   desc: string;
   displayName: string;
-  entry: string;
   repo: string;
   shinsekaiVersion: string;
   socialLink: string;
@@ -34,7 +33,6 @@ const emptyForm: PublisherFormState = {
   author: "",
   desc: "",
   displayName: "",
-  entry: "",
   repo: "",
   shinsekaiVersion: "",
   socialLink: "",
@@ -53,7 +51,6 @@ function buildSubmission(form: PublisherFormState): PluginSubmissionInput {
     author: form.author.trim(),
     desc: form.desc.trim(),
     display_name: form.displayName.trim(),
-    entry: form.entry.trim() || undefined,
     repo: form.repo.trim(),
     shinsekai_version: form.shinsekaiVersion.trim() || undefined,
     social_link: form.socialLink.trim(),
@@ -111,7 +108,6 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
         author: result.author || current.author,
         desc: result.desc || current.desc,
         displayName: result.display_name || current.displayName,
-        entry: result.entry || current.entry,
         repo: result.repo || current.repo,
         shinsekaiVersion: result.shinsekai_version || current.shinsekaiVersion,
         socialLink: result.social_link || current.socialLink,
@@ -285,12 +281,6 @@ export function PluginPublisherDialog({ onClose, open }: PluginPublisherDialogPr
               value={form.repo}
             />
           </label>
-          {form.entry ? (
-            <label className="form-field plugin-publisher-form__wide">
-              <span>{t("plugin.publisher.entryAuto")}</span>
-              <TextInput autoComplete="off" readOnly value={form.entry} />
-            </label>
-          ) : null}
           <label className="form-field">
             <span>{t("plugin.publisher.shinsekaiVersion")}</span>
             <TextInput
