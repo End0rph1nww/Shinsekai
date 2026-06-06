@@ -390,7 +390,7 @@ body:
 - [ ] Normalize plugin key from `name` if provided, otherwise from the repo name.
 - [ ] Reject repo URLs that are not `https://github.com/{owner}/{repo}` or that end with `.git`.
 - [ ] Require `display_name`, `desc`, `author`, `repo`, and `entry`.
-- [ ] Limit `desc` to 70 Unicode characters.
+- [ ] Limit `desc` to 200 Unicode characters.
 - [ ] Limit `tags` to 5 strings.
 - [ ] Write or update the plugin entry in `plugins.json`.
 - [ ] Make `issue-to-registry-pr.yml` run on `issues.opened` and `issues.edited` with label `plugin-publish`.
@@ -519,7 +519,7 @@ python scripts\registry\update_generated_registry.py --dry-run --plugin-name shi
 - [ ] Replace the placeholder submit guide with a 3-step wizard: fill form, preview JSON, open GitHub Issue.
 - [ ] Form fields: `display_name`, `desc`, `author`, `repo`, `entry`, `tags`, `social_link`.
 - [ ] Validate GitHub URL with the same rule as the registry script.
-- [ ] Limit `desc` to 70 Unicode characters and tags to 5.
+- [ ] Limit `desc` to 200 Unicode characters and tags to 5.
 - [ ] Generate JSON matching the registry Issue template.
 - [ ] Use `VITE_SUBMIT_URL` for the Issue URL. Staging can point to `https://github.com/End0rph1nww/Shinsekai-Plugin-Registry/issues/new?template=PLUGIN_PUBLISH.yml`; production should point to the upstream registry after PR acceptance.
 - [ ] Do not hard-code the fork owner into production builds.
@@ -578,7 +578,7 @@ npm run build
 
 - [ ] Add `metadata.py` to scan a local plugin folder for README title, package folder, candidate `entry`, `requirements.txt`, logo file, and repository URL from git remote config.
 - [ ] Add `submission.py` to serialize exactly the same JSON fields as PR 5 and PR 7: `display_name`, `desc`, `author`, `repo`, `entry`, `tags`, and `social_link`.
-- [ ] Add `validate.py` with the same validation rules as registry CI: GitHub URL only, required fields, `desc` <= 70 Unicode characters, and at most 5 tag strings.
+- [ ] Add `validate.py` with the same validation rules as registry CI: GitHub URL only, required fields, `desc` <= 200 Unicode characters, and at most 5 tag strings.
 - [ ] Add `frontend_bridge_core\plugin_publisher.py` commands for `scanLocalPlugin`, `validatePluginSubmission`, `buildPluginSubmissionIssueUrl`, and `copyPluginSubmissionJson`.
 - [ ] Add a `Submit Plugin` action in the plugin manager that opens `PluginPublisherDialog`.
 - [ ] Build the dialog with the same field order as the market wizard: fill form, preview JSON, open GitHub Issue.
