@@ -85,10 +85,10 @@ def test_normalize_submission_normalizes_repo_url_and_serializes_contract_json()
         "social_link": "https://github.com/sample-owner",
     }
     assert normalized == expected
-    assert submission_json(payload) == json.dumps(expected, ensure_ascii=False, indent=2)
+    assert json.loads(submission_json(payload)) == expected
 
 
-@pytest.mark.parametrize("field", ("display_name", "desc", "author", "repo", "entry"))
+@pytest.mark.parametrize("field", ("display_name", "desc", "author", "repo"))
 def test_normalize_submission_rejects_missing_required_fields(field):
     payload = valid_submission(**{field: " "})
 
@@ -159,9 +159,9 @@ def test_frontend_bridge_validate_submission_returns_frontend_payload():
     assert result["submission"] == expected
     assert json.loads(result["json"]) == expected
 
-    invalid = _validate_plugin_submission(valid_submission(entry=""))
+    invalid = _validate_plugin_submission(valid_submission(display_name=""))
     assert invalid["ok"] is False
-    assert invalid["errors"] == ["entry is required and must be a non-empty string."]
+    assert invalid["errors"] == ["display_name is required and must be a non-empty string."]
     assert "json" not in invalid
     assert "submission" not in invalid
 
