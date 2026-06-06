@@ -117,6 +117,13 @@
   object-fit: cover;
 }
 
+.plugin-card__logo img.plugin-default-logo,
+.plugin-market-card__logo img.plugin-default-logo {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+}
+
 .plugin-card__identity {
   display: grid;
   min-width: 0;

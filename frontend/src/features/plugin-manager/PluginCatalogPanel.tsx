@@ -53,6 +53,7 @@ import {
   TaskProgress,
   useToast,
 } from "../../shared/ui";
+import defaultPluginLogoUrl from "../../assets/default-plugin-logo.svg";
 import { PluginListControls, searchablePluginText, usePagedPluginList } from "./PluginListControls";
 import { catalogInstallSource, githubUrl } from "./pluginUtils";
 
@@ -308,7 +309,7 @@ export function PluginCatalogInstallDialog({
                 {plugin.logo ? (
                   <img alt="" src={plugin.logo} />
                 ) : (
-                  <span>{catalogDisplayName(plugin).slice(0, 2).toUpperCase()}</span>
+                  <img alt="" className="plugin-default-logo" src={defaultPluginLogoUrl} />
                 )}
               </div>
               <div className="plugin-market-card__identity">
@@ -603,7 +604,11 @@ export function PluginCatalogPanel({
       <article className="plugin-market-card" key={catalogKey(plugin)}>
         <div className="plugin-market-card__header">
           <div className="plugin-market-card__logo" aria-hidden="true">
-            {plugin.logo ? <img alt="" src={plugin.logo} /> : <span>{displayName.slice(0, 2).toUpperCase()}</span>}
+            {plugin.logo ? (
+              <img alt="" src={plugin.logo} />
+            ) : (
+              <img alt="" className="plugin-default-logo" src={defaultPluginLogoUrl} />
+            )}
           </div>
           <div className="plugin-market-card__identity">
             <div className="plugin-market-card__title-row">

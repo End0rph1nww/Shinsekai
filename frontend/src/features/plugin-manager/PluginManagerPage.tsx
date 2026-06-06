@@ -48,6 +48,7 @@ import {
   TaskProgress,
   useToast,
 } from "../../shared/ui";
+import defaultPluginLogoUrl from "../../assets/default-plugin-logo.svg";
 import { McpSettingsPanel } from "./McpSettingsPanel";
 import { PluginCatalogInstallDialog, PluginCatalogPanel } from "./PluginCatalogPanel";
 import { PluginDetailPanel } from "./PluginDetailPanel";
@@ -142,15 +143,6 @@ function findCatalogInstalledMatch(catalog: PluginCatalogItem, plugins: PluginMa
     }
     return false;
   });
-}
-
-function pluginLogoText(title: string) {
-  return title
-    .split(/[\s_-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
 }
 
 function catalogDisplayName(plugin: PluginCatalogItem | null | undefined) {
@@ -583,7 +575,7 @@ export function PluginManagerPage() {
                         {catalog?.logo ? (
                           <img alt="" src={catalog.logo} />
                         ) : (
-                          <span>{pluginLogoText(displayTitle)}</span>
+                          <img alt="" className="plugin-default-logo" src={defaultPluginLogoUrl} />
                         )}
                       </div>
                       <div className="plugin-card__identity">
