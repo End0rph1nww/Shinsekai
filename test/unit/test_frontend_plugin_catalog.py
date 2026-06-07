@@ -81,7 +81,7 @@ def test_plugin_registry_rows_expose_market_metadata(monkeypatch):
         short_description="Short card text",
         entry="plugins.demo.plugin:DemoPlugin",
         version="v0.1.0",
-        shinsekai_version=">=2.0.0",
+        lowest_shinsekai_version=">=2.0.0",
         source_url="https://github.com/owner/demo",
         readme_url="https://raw.githubusercontent.com/owner/demo/main/README.md",
         download_url="https://plugins.example.invalid/plugins/demo.zip",

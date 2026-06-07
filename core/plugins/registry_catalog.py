@@ -40,7 +40,7 @@ class RegistryPluginRecord:
     short_description: str
     entry: str
     version: str = ""
-    shinsekai_version: str = ""
+    lowest_shinsekai_version: str = ""
     source_url: str = ""
     readme_url: str = ""
     download_url: str = ""
@@ -75,6 +75,11 @@ class RegistryPluginRecord:
     @property
     def normalized_tags(self) -> list[str]:
         return list(self.tags or [])
+
+    @property
+    def shinsekai_version(self) -> str:
+        """Backward-compatible alias for older registry payload consumers."""
+        return self.lowest_shinsekai_version
 
 
 def _relax_json_trailing_commas(text: str) -> str:
@@ -184,7 +189,12 @@ def parse_registry_plugins(raw: Any) -> list[RegistryPluginRecord]:
                 short_description=short_description,
                 entry=entry,
                 version=_as_string(item.get("version")),
-                shinsekai_version=_as_string(item.get("shinsekai_version") or item.get("shinsekaiVersion")),
+                lowest_shinsekai_version=_as_string(
+                    item.get("lowest_shinsekai_version")
+                    or item.get("lowestShinsekaiVersion")
+                    or item.get("shinsekai_version")
+                    or item.get("shinsekaiVersion")
+                ),
                 source_url=_as_string(item.get("source_url") or item.get("sourceUrl")),
                 readme_url=_as_string(item.get("readme_url") or item.get("readmeUrl")),
                 download_url=download_url,
