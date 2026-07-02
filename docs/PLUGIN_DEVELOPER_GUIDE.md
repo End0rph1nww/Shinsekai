@@ -8,21 +8,63 @@
 
 Plugins are ordinary Python packages under `plugins/<package>/`, loaded from
 `data/config/plugins.yaml`, and executed **in-process** with the host. They are **not**
-a security boundary.
+a security boundary: plugin code runs with full host-process privileges, and the
+read-only SDK contexts exist to prevent *accidental misuse* of host internals, not to
+contain malicious code — review third-party plugins before installing them.
+
+### Two development layouts
+
+|  | **Local development** | **Market release** |
+| --- | --- | --- |
+| Source location | `plugins/<package>/` inside the host repo | own GitHub repo, `plugin.py` at the repo root |
+| `entry` | hand-written into `plugins.yaml` | inferred by registry CI; users install from the market |
+| Best for | personal use, prototypes, shipping with the host | public distribution, market update pushes |
+| Typical path | `plugins/my_plugin/plugin.py` | `my-plugin-repo/plugin.py` (flat repos infer an entry like `plugins.my_plugin_repo.plugin:...`) |
+
+The plugin code itself is identical in both layouts; only the directory layout and the
+distribution mechanism differ. See **Scaffolding and publishing** for the market
+pipeline.
 
 ### How the host uses your code
 
-1. **Load** the manifest and import each `entry` → `PluginBase` subclass.
+1. **Load** the manifest and import each `entry` → `PluginBase` subclass. Before that
+   the host puts the directory containing `plugins/` on `sys.path` (source checkout:
+   the CWD; packaged build: the install root, plus `data/plugin_site_packages` where
+   plugin dependencies are installed).
 2. **Construct** plugins with `cls()` (no constructor arguments).
 3. **Call** `initialize(register, plugin_root, host)` in **priority** order (lower
-   `priority` runs first).
+   `priority` runs first). `plugin_root` is a writable per-plugin data directory the
+   host creates for you — `data/plugins/<plugin_id with "/" replaced by "_">/`. Keep
+   plugin state, caches, and private config there, never in your source tree.
 4. **Merge** everything you registered on `register` (`PluginCapabilityRegistry`, alias
    `PluginRegister`) into global factories, tool lists, and UI contribution lists — see
-   `core/plugins/plugin_host.py` and `sdk/manager.py`.
+   `core/plugins/plugin_host.py` and `sdk/manager.py`. Tools apply in a fixed order:
+   module-level `@tool` functions first, then `register_llm_tool` callbacks, then MCP
+   tools from `data/config/mcp.yaml` (skipped when the optional `mcp` dependency is
+   missing).
 5. **Shut down**: on host exit, `shutdown()` is called on each plugin in **reverse**
    priority order (higher `priority` first). Exceptions are logged and ignored.
 
-You need a **full restart** after changing `plugins.yaml` (unlike MCP save-and-apply).
+Plugin loading runs once per process (`ensure_plugins_loaded` is idempotent), so editing
+`plugins.yaml` by hand requires a **restart** (unlike MCP save-and-apply). The desktop
+app softens this: installing or updating a plugin in the Plugin Manager automatically
+restarts the plugin service and waits for it to come back — the same path as the manual
+**Reload** action — so no separate restart is needed there. The web UI still shows a
+manual reload hint instead.
+
+### Fault tolerance
+
+One broken plugin does not take the host down:
+
+| Failure point | Behavior |
+| --- | --- |
+| `entry` import error | logged, entry skipped |
+| Class instantiation error | logged (`Skipping plugin class …`), class skipped |
+| `initialize` raises | logs `initialize failed for <plugin_id>`, next plugin continues |
+| Lifecycle hook raises | warning log, other hooks unaffected |
+| `shutdown` raises | logged |
+
+There is **no error popup** when a plugin fails to load — check the logs.
 
 ### `PluginBase` surface
 
@@ -132,6 +174,36 @@ host.
 - A broken entry (import error, bad class) is logged and skipped; other plugins load
   normally.
 
+### Market-release repository layout
+
+Market plugins live in their own GitHub repository with the entry file at the repo root
+(registry CI infers `entry` from it):
+
+```text
+shinsekai-plugin-example/
+  plugin.py           # entry: the PluginBase subclass lives here
+  requirements.txt    # optional; installed on install/update
+  README.md           # features, configuration, dependency sources, risk notes
+  logo.png            # optional market card icon
+  plugin.json         # optional publish metadata (see Scaffolding and publishing)
+  assets/             # other resources (logo may live here too)
+  frontend/dist/      # if the plugin ships its own frontend page
+```
+
+- **Entry/name inference:** for a root-level `plugin.py`, registry CI lowercases the
+  repo name and turns `-` into `_` when it builds the package segment in `entry` (for
+  example, `Shinsekai-Plugin-Market` -> `plugins.shinsekai_plugin_market.plugin:...`).
+  Use only letters, digits, `.`, `-`, and `_` in repo names so the inferred name is a
+  valid Python package segment.
+- **Install directory:** installed folder names come from the registry package/name/id
+  metadata and are filename-sanitized by the client. Treat the `entry`, not the install
+  folder name, as the stable import contract.
+- Helper modules may live in subdirectories, but keep `plugin.py` at the repo root (or
+  a first-level package directory), or CI entry inference may fail.
+- **Logo:** `logo.png`, `logo.jpg`, `logo.jpeg`, or `logo.webp` at the repo root or in
+  one of `assets/`, `asset/`, `static/`, `public/`, `resources/`, `res/`, `images/`,
+  `img/`.
+
 ### UI contexts (read-only surfaces)
 
 | Context                   | Where it appears                                              | What you get                                                                                                                                                                       |
@@ -144,13 +216,42 @@ Prefer these over raw Qt signals on internal windows. `ChatUIContext` is also re
 at runtime via `sdk.chat_ui_context.try_get_chat_ui_context()` (returns `None` before
 the chat window exists) or `get_chat_ui_context()` (raises `RuntimeError` instead).
 
+`PluginHostContext` fields (frozen dataclass; the defaults shown apply when no config
+manager is available):
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ui_language` | `str` | `"zh_CN"` | UI language (`zh_CN` / `en` / `ja`) |
+| `voice_language` | `str` | `"ja"` | voice language |
+| `base_font_size_px` | `int` | `56` | base font size |
+| `theme_color` | `str` | `"rgba(50,50,50,200)"` | theme tint |
+| `selected_llm_provider` | `str` | `""` | selected LLM provider label — no secrets |
+| `tts_provider` | `str` | `""` | selected TTS provider |
+| `live_room_id` | `str` | `""` | live-stream room id |
+| `project_data_dir` | `Path` | `data` | project data directory |
+| `huggingface_cache_dir` | `Path` | `data/cache/huggingface` | put model downloads here |
+
 `ChatUIContext` members beyond the examples below — state reads: `notification_hint()`,
 `input_draft()`, `choice_options()`, `is_dialog_visible()`, `is_choice_panel_visible()`,
 `dialog_text()`, `background_image_path()`, `base_font_size_px()`; thread-safe UI
 updates: `set_notification_hint`, `set_busy_bar(text, duration_seconds=3.0)`,
 `hide_busy_bar()`, `set_input_draft`, `clear_input_draft`, `set_choice_options`,
-`set_dialog_html`, `submit_user_message`; plus 28 `on_*` event subscriptions, each
-returning a disconnect callable.
+`set_dialog_html`, `submit_user_message`. Each of the 28 `on_*` event subscriptions
+returns a **disconnect** callable — keep it and call it when your widget goes away:
+
+`on_message_submitted(str)`, `on_reroll_requested()`, `on_open_chat_history_dialog()`,
+`on_change_voice_language(str)`, `on_close_window()`, `on_clear_chat_history()`,
+`on_skip_speech_signal()`, `on_llm_reply_finished()`, `on_pause_asr_signal()`,
+`on_copy_chat_history_to_clipboard()`, `on_revert_chat_history(int)`,
+`on_option_selected(str)`, `on_llm_response_received(object)`,
+`on_background_image_changed(str)`, `on_notification_changed(str)`,
+`on_display_words_changed(str)`, `on_numeric_info_changed(str)`,
+`on_user_input_started()`, `on_user_input_ended()`,
+`on_mic_transcription_update(str, bool)`, `on_mic_asr_state_changed(bool)`,
+`on_mic_asr_pause_requested()`, `on_mic_asr_resume_requested()`,
+`on_mic_send_final_transcription()`, `on_cg_display_changed(bool)`,
+`on_dialog_typing_finished()`, `on_dialog_area_clicked()`,
+`on_sprite_frame_updated(object)`
 
 ### Runtime workflows
 
@@ -244,6 +345,14 @@ class RouterNode(DagNode):
 Important boundary: `edges` only wire queues. A passive node is not executed just
 because it appears in YAML. Something must call its methods, or it must implement its
 own lifecycle.
+
+Other `DagNode` members: `from_config(name, params)` (classmethod the YAML loader uses;
+the default builds `cls(name=name, **params)` — override it when the mapping is
+non-trivial), and `inq(port_name)` / `outq(port_name)` to fetch the queue bound to a
+port (both raise `RuntimeError` for unbound ports). In `exports`, `direction` selects
+what gets exposed: `input` / `output` expose the port's bound queue, `node` exposes the
+node handle itself; when omitted, it defaults to `node` if no `port` is given and
+`input` otherwise.
 
 ### Output contract patching
 
@@ -386,6 +495,34 @@ such as character counts, item counts, and durations. `new_log_id(prefix="")` ge
 correlation ids; recognised context fields are `session_id`, `turn_id`, `request_id`,
 `task_id`, `plugin_id`.
 
+### Exceptions
+
+`sdk.exception` gives plugins the host's exception classification and user-facing
+formatting:
+
+```python
+from sdk.exception import classify_exception, format_llm_exception_message
+
+try:
+    result = call_remote_api()
+except Exception as exc:
+    info = classify_exception(exc)   # ExceptionInfo | None
+    friendly = format_llm_exception_message(exc, fallback_message="Request failed.")
+```
+
+- `classify_exception` first checks for **missing dependencies** (via a module → pip
+  package map, e.g. `PIL` → `Pillow`, `cv2` → `opencv-python`) and returns a
+  `RuntimeDependencyError`; then for **HTTP client errors** across the httpx /
+  httpcore / urllib / openai / anthropic exception families, returning an
+  `HttpClientError` (error type, timeout flag, status code, URL). Anything else →
+  `None`.
+- `format_llm_exception_message(exc, *, fallback_message)` turns 401/402/403/429,
+  timeouts, 5xx, … into an actionable message for users.
+- `install_main_exception_hook` and the other handler/dialog APIs are host-only.
+
+Inside LLM tools, prefer returning structured errors (e.g. `{"error": "..."}`) over
+raising — the model can read a structured error and explain it to the user.
+
 ### Adapter classes: schemas and "extra" kwargs
 
 #### Where adapters show up, and who owns the parameters
@@ -418,6 +555,10 @@ ship a parallel config format for the same secrets. Optional plugin-specific dat
   `config.adapter_extra_kwargs.filter_kwargs_for_ctor` (or full dict if `__init__` has
   `**kwargs`).
 - **Subclass** `sdk/adapters` ABCs and register the **class**, not an instance.
+- `LLMAdapter.__init__(**kwargs)` tolerates unknown keys (it only sets
+  `user_template = ""`; the host calls `set_user_template()` separately). `TTSAdapter`
+  declares **no** base `__init__` — its constructor contract is entirely between your
+  subclass and `merged_tts_factory_kwargs`.
 - LLM adapters may also override `get_unsupported_chat_params(provider) -> set[str]` to
   strip sampling params a backend rejects (e.g. penalty parameters on Gemini's
   OpenAI-compatible bridge).
@@ -663,8 +804,13 @@ Extend the TTS pipeline (`MessageHandler` for `LLMDialogMessage`) and/or UI outp
 Import the ABCs and message models from the SDK (`sdk.handlers`, `sdk.messages`) rather
 than host-internal modules.
 
-Note the SDK field names: `LLMDialogMessage` exposes `name` / `text` / `asset_id` (with
-aliases `character_name` / `speech` / `sprite` accepted when parsing LLM JSON).
+Message models (`sdk.messages`, Pydantic; the aliases keep parsed LLM JSON compatible):
+
+| Model | Queue | Fields (alias) |
+| --- | --- | --- |
+| `UserInputMessage` | user input | `text` |
+| `LLMDialogMessage` | TTS | `name` (`character_name`), `text` (`speech`), `asset_id` (`sprite`; `"-1"` = leave unchanged), `translate`, `effect` |
+| `TTSOutputMessage` | UI output | same minus `translate`, plus `audio_path`, `is_system_message`, `is_final_segment`, `timeout` |
 
 ```python
 from sdk.handlers import MessageHandler
@@ -1092,26 +1238,76 @@ python -m sdk.cli registry-append --registry /path/to/Shinsekai-Plugin-Registry 
 Rows are deduplicated by repo slug (lowercase; pass `--replace` to overwrite) and sorted
 by name.
 
+For chat-UI theme packs there is a separate helper — `python -m sdk.chat_ui_theme` —
+with module-level APIs `validate_manifest`, `validate_theme_dir`, `pack_theme`, and
+`safe_extract` (`sdk/chat_ui_theme.py`).
+
 Alternatively, submit through the plugin market at <https://plugins.shinsekai.studio> —
 it generates a normalized JSON payload and opens a prefilled `Publish Plugin` issue
 (`PLUGIN_PUBLISH.yml`) on the registry; CI infers the `entry` automatically from your
 repository's root-level `plugin.py`, so market submissions don't need `--entry` at all.
 Submission constraints: `display_name` / `desc` / `author` / `repo` required, `desc` ≤
-200 chars, `repo` must be `https://github.com/{owner}/{repo}`, at most 5 `tags`. You may
-also ship a `plugin.json` (or `shinsekai.plugin.json`) in the repo root carrying these
-fields.
+200 chars, `repo` must be `https://github.com/{owner}/{repo}`, at most 5 `tags`;
+optional `lowest_shinsekai_version` and `social_link`. You may also ship a `plugin.json`
+(or `shinsekai.plugin.json`) in the repo root carrying these fields — when fields are
+missing, the local submission helper (`scan_local_plugin`) falls back to your README's
+first `#` heading (display name), the first paragraph after it (description), the git
+remote (repo), and the directory name.
+
+### Market pipeline, versioning, and trust levels
+
+```text
+write plugin → submit issue → CI opens PR → maintainer merges → R2 packaging → market install
+```
+
+Registry CI clones your repo, infers the `entry` (the `plugin.py` closest to the repo
+root, AST-parsed for a `PluginBase` subclass — class names ending in `Plugin` win),
+then opens a review PR. Before distribution the pipeline runs a static scan (credential
+leaks, dangerous calls) plus a ClamAV virus scan, and packages the source to R2 object
+storage with a SHA256 checksum.
+
+Version resolution per repackage: **Latest Release → newest tag → default branch HEAD**
+(fallback version `v0.0.0`). Two gotchas:
+
+- `plugin_version` only controls what the market and client **display**; it does not
+  pick the commit CI packages. Bump it **and** tag a new Release for every release.
+- Once a repo has used a Release/Tag, pushes to the default branch alone no longer
+  trigger repackaging.
+
+| Trust level | Meaning |
+| --- | --- |
+| `community` | default; passed basic CI checks — **not** a security audit |
+| `verified` | maintainer manually reviewed a specific commit + version (request via a `Verification Request` issue) |
+| `verified_update_pending` | a verified plugin published newer code; re-review pending |
+| `blocked` | banned from the market |
 
 ### Plugin dependencies
 
 Ship a `requirements.txt` next to your plugin. It is installed when the user **installs
-or updates** the plugin (not on every launch): already-satisfied lines are skipped,
-`torch`/`torchvision`/`torchaudio` are routed to the PyTorch wheel index with automatic
-CUDA/CPU channel selection, and frozen (packaged) installs go to
-`data/plugin_site_packages` via the bundled runtime. Mirror selection honours
-`PIP_INDEX_URL` (and friends), `SHINSEKAI_PIP_INDEX_URL(S)`, `SHINSEKAI_RUNTIME_SOURCE`,
-and `SHINSEKAI_MIRROR_REGION`; a requirements file that sets its own `-i` /
-`--index-url` is left untouched. Document download size, model caches, and hardware
-requirements in your README for heavy dependencies.
+or updates** the plugin (not on every launch). Details worth knowing:
+
+- **Precheck pruning** — already-satisfied lines are skipped; only missing/unsatisfied
+  ones go to pip. Files using special syntax (`-e`, `--find-links`, …) are passed
+  through whole.
+- **PyTorch routing** — `torch` / `torchvision` / `torchaudio` install from the PyTorch
+  wheel index, with the CUDA channel picked from `nvidia-smi` (≥ 12.4 → `cu124`, ≥ 12 →
+  `cu121`, ≥ 11.8 → `cu118`, otherwise CPU wheels).
+- **Install target** — source checkouts install into the current Python environment;
+  packaged builds run the bundled runtime Python with
+  `pip install --target data/plugin_site_packages`.
+- **Result codes** — `pip_ok`, `pip_skip_no_requirements`, `pip_failed`,
+  `pip_conflict`, `pip_timeout` (overall timeout 900 s), `pip_exception`.
+- **Mirrors** — China mirrors (Tsinghua → USTC → HIT) are preferred when region
+  settings say so, with official PyPI as fallback. Any of `PIP_INDEX_URL` /
+  `PIP_EXTRA_INDEX_URL` / `PIP_NO_INDEX` / `PIP_CONFIG_FILE` in the environment
+  disables mirror injection entirely; `SHINSEKAI_PIP_INDEX_URL(S)`,
+  `SHINSEKAI_RUNTIME_SOURCE`, and `SHINSEKAI_MIRROR_REGION` override the choice. A
+  requirements file that sets its own `-i` / `--index-url` / `--no-index` is left
+  untouched.
+
+Document download size, model caches, and hardware requirements in your README for
+heavy dependencies; put model downloads in `host.huggingface_cache_dir` or
+`plugin_root`, never in your source tree.
 
 ---
 
@@ -1175,6 +1371,42 @@ downloaded, ignored, or user-local plugin directory.
 - Tag a GitHub Release (or at least a tag like `v0.1.0`) — the registry CI resolves
   Latest Release → newest tag → default branch HEAD, in that order, and only repackages
   when the resolved commit changes.
+- Never commit tokens, cookies, `.env` files, account configs, caches, virtualenvs, or
+  build artifacts; don't perform unrelated system modifications at install time.
+- Say in the README **why** the plugin needs each network request, file access, or
+  external command — the market's static scan and reviewers look for exactly that.
+
+### Official example plugins
+
+| Repository | Demonstrates |
+| --- | --- |
+| [Shinsekai-Whisper-Asr](https://github.com/RachelForster/Shinsekai-Whisper-Asr) | ASR adapter (faster-whisper / RealtimeSTT) |
+| [Shinsekai-bilibili-live](https://github.com/RachelForster/Shinsekai-bilibili-live) | user-input trigger (Bilibili danmaku → chat input) |
+| [Shinsekai-Playwright-Browser](https://github.com/RachelForster/Shinsekai-Playwright-Browser) | LLM tools + browser automation + bundled frontend page |
+| [Shinsekai-Moondream-Vision](https://github.com/RachelForster/Shinsekai-Moondream-Vision) | vision tools + the slow-loading-model pattern |
+| [Shinsekai-ChatUI-Customize](https://github.com/RachelForster/Shinsekai-ChatUI-Customize) | chat-UI theme customization |
+
+### FAQ
+
+**Changed `plugins.yaml` but nothing happened?** Restart the host process (on the
+desktop app, the Plugin Manager's Reload action restarts the plugin service for you).
+Only MCP config is save-and-apply.
+
+**Plugin didn't load, and there was no error popup?** Load failures only go to the
+logs. Look for `initialize failed for <plugin_id>` or an import error; check the
+`entry` spelling, the class name, and the `PluginBase` inheritance.
+
+**Can't read the API key inside `initialize`?** By design. Secrets are injected only
+when an adapter instance is constructed at runtime; the `host` snapshot never carries
+them.
+
+**Adapter constructor got unexpected parameters?** The host merges shared config fields
+with your schema's extras (`merged_*_factory_kwargs`) and filters them against your
+`__init__` signature; with `**kwargs` you receive everything — ignore unknown keys.
+
+**Market update not detected?** CI only reacts to Release/Tag changes once a repo has
+used one — pushes to the default branch alone don't trigger repackaging. Tag a new
+Release for each version.
 
 ### Source map
 
@@ -1190,6 +1422,7 @@ downloaded, ignored, or user-local plugin directory.
 | Tool registry                | `sdk/tool_registry.py`                                       |
 | Hooks                        | `sdk/hooks.py`                                               |
 | DAG                          | `sdk/graph.py`                                               |
+| Chat-UI theme packs          | `sdk/chat_ui_theme.py`                                       |
 | Logging facade               | `sdk/logging/`                                               |
 | Exceptions                   | `sdk/exception/`                                             |
 | Plugin manager               | `sdk/manager.py`                                             |
