@@ -51,6 +51,20 @@ class TestLlmResponseStreamParser:
         assert results[0].name == "X"
         assert parser.has_errors
 
+    def test_schema_invalid_json_does_not_hide_following_message(self):
+        parser = LlmResponseStreamParser()
+        chunk = (
+            '{"speech": "missing character"}'
+            '{"character_name": "Alice", "speech": "Recovered", "sprite": "0"}'
+        )
+
+        results = list(parser.feed(chunk))
+
+        assert [message.name for message in results] == ["Alice"]
+        assert results[0].text == "Recovered"
+        assert parser.parse_failures == 1
+        assert parser.unparsed_remainder == ""
+
     def test_brace_inside_string_does_not_end_json(self):
         parser = LlmResponseStreamParser()
         results = list(parser.feed('{"character_name": "A", "speech": "brace } in text", "sprite": "0"}'))
