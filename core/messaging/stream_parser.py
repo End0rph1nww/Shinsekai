@@ -94,4 +94,3 @@ class LlmResponseStreamParser:
                 self.parse_failures += 1
                 self.last_error = str(e)[:200]
                 self._buffer = self._buffer[end_index:].strip()
-                break
